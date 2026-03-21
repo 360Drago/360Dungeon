@@ -1688,6 +1688,22 @@
     return false;
   }
 
+  function getFirstAvailableDungeonKey() {
+    const cardMatch = cards.find((card) => sanitizeSelectedDungeonKey(card?.dataset?.dungeon));
+    if (cardMatch) return sanitizeSelectedDungeonKey(cardMatch.dataset.dungeon);
+    const fallbackKey = Object.keys(MARKET_HRIDS || {}).find((key) => sanitizeSelectedDungeonKey(key));
+    return sanitizeSelectedDungeonKey(fallbackKey);
+  }
+
+  function autoSelectFirstDungeonForTokenShop() {
+    const tokenOn = !!(tokenShopToggle && tokenShopToggle.checked);
+    if (!tokenOn || selectedDungeon) return false;
+    const nextDungeon = getFirstAvailableDungeonKey();
+    if (!nextDungeon) return false;
+    setSelectedDungeon(nextDungeon, { fromUser: false });
+    return true;
+  }
+
   // Manual loot price overrides (global across all dungeons)
   let lootOverrideEnabled = storageGetItem(KEY_LOOT_OVERRIDE_ENABLED) === "1";
   let lootPriceOverrides = loadLootPriceOverrides();
@@ -1807,6 +1823,7 @@
 
   function applyInlineModePostToggle() {
     syncInlineModeBodyClasses();
+    if (autoSelectFirstDungeonForTokenShop()) return;
     // Recompute stage classes so quick/advanced panels hide/show correctly when top inline tools change.
     if (selectedDungeon) applySelectedStage(selectedTier);
     else applyLandingStage();
@@ -4029,6 +4046,7 @@ async function renderAdvancedResults() {
 
   function initializeUiOnInit() {
     restoreSelectionStateOnInit();
+    autoSelectFirstDungeonForTokenShop();
     applyPricingSelectionUi(pricingModel);
     updatePricingAvailability();
 
@@ -4315,6 +4333,7 @@ async function renderAdvancedResults() {
         reason: opts.reason || "zone-compare",
       });
     },
+    ensureTokenShopDungeonSelection: () => autoSelectFirstDungeonForTokenShop(),
     getActiveLootOverrides: () => (typeof getActiveLootOverrides === "function" ? getActiveLootOverrides() : null),
     getOfficialEvCached: (dungeonKey, side) => (typeof getOfficialEvCached === "function" ? getOfficialEvCached(dungeonKey, side) : null),
   };

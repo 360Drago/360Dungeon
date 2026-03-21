@@ -987,6 +987,11 @@
         tokenShopSelectedUiKey = "";
         return;
       }
+      const selectedDungeon = asText(window.DungeonAPI?.getSelectedDungeon?.() || "");
+      if (!selectedDungeon && typeof window.DungeonAPI?.ensureTokenShopDungeonSelection === "function") {
+        const autoSelected = !!window.DungeonAPI.ensureTokenShopDungeonSelection();
+        if (autoSelected) return;
+      }
       render();
     };
 
