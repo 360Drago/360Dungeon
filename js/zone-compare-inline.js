@@ -44,6 +44,7 @@
   let calcRunToken = 0;
   let apiWarnings = [];
   let apiWarningsOpen = false;
+  let minutesPlaceholderMeasureCanvas = null;
 
   function getShared(name) {
     return window[name] || null;
@@ -63,6 +64,45 @@
     const translateFormat = getTextShared()?.tf;
     if (typeof translateFormat === "function") return translateFormat(key, fallback, vars);
     return String(fallback || "");
+  }
+
+  function getMinutesPlaceholderText() {
+    return t("ui.minutesWord", "Minutes");
+  }
+
+  function getMinutesPlaceholderShortText() {
+    return t("ui.min", "Min");
+  }
+
+  function measureTextWidthPx(text, font) {
+    const label = String(text || "");
+    if (!label) return 0;
+    const canvas = minutesPlaceholderMeasureCanvas || document.createElement("canvas");
+    minutesPlaceholderMeasureCanvas = canvas;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return label.length * 8;
+    ctx.font = font;
+    return ctx.measureText(label).width;
+  }
+
+  function resolveMinutesPlaceholderForInput(input) {
+    const longLabel = getMinutesPlaceholderText();
+    const shortLabel = getMinutesPlaceholderShortText();
+    if (!input) return longLabel;
+    const style = window.getComputedStyle(input);
+    const font = style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const padLeft = Number.parseFloat(style.paddingLeft) || 0;
+    const padRight = Number.parseFloat(style.paddingRight) || 0;
+    const availableWidth = Math.max(0, input.clientWidth - padLeft - padRight - 2);
+    return measureTextWidthPx(longLabel, font) <= availableWidth ? longLabel : shortLabel;
+  }
+
+  function syncZoneMinutePlaceholders(root = byId("zoneCompareInline")) {
+    const host = root || byId("zoneCompareInline");
+    if (!host) return;
+    host.querySelectorAll(".zcTierInput").forEach((input) => {
+      input.placeholder = resolveMinutesPlaceholderForInput(input);
+    });
   }
 
   function getStorageShared() {
@@ -444,7 +484,7 @@
       <div class="zcTierRow" data-zone="${zone.key}" data-tier="${tier}">
         <div class="zcTierInputWrap">
           <span class="zcTag">${tier}</span>
-          <input id="zcMin-${zone.key}-${tier}" class="zcInput zcTierInput" type="text" inputmode="decimal" maxlength="4" placeholder="${t("ui.min", "Min")}" aria-label="${tf("aria.zoneCompareClearMinutes", "{zone} {tier} clear minutes", { zone: zone.title, tier })}" />
+          <input id="zcMin-${zone.key}-${tier}" class="zcInput zcTierInput" type="text" inputmode="decimal" maxlength="4" placeholder="${getMinutesPlaceholderText()}" aria-label="${tf("aria.zoneCompareClearMinutes", "{zone} {tier} clear minutes", { zone: zone.title, tier })}" />
         </div>
         <div class="zcProfitWrap">
           <span id="zcProfit-${zone.key}-${tier}" class="zcProfit">-</span>
@@ -1783,6 +1823,8 @@
     panel.innerHTML = panelHtml(zones);
     panel.hidden = false;
     syncInputs(zones);
+    syncZoneMinutePlaceholders(panel);
+    window.requestAnimationFrame(() => syncZoneMinutePlaceholders(panel));
     bindEvents(zones);
     renderApiWarnings(apiWarnings);
     const source = String((window.DungeonAPI?.getPricingModel?.() || "official"));
@@ -1807,6 +1849,9 @@
     };
 
     toggle.addEventListener("change", apply);
+    window.addEventListener("resize", () => {
+      if (toggle.checked) window.requestAnimationFrame(() => syncZoneMinutePlaceholders(panel));
+    }, { passive: true });
     document.addEventListener("site:lang-changed", () => {
       if (toggle.checked) void render();
     });
