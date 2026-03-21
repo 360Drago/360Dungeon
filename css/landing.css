@@ -2105,6 +2105,11 @@ html.site-controls-hidden .siteControls {
   color: color-mix(in srgb, #ffb081 86%, var(--text));
 }
 
+.profileStatus.is-temp-shared-confirm {
+  max-width: 292px;
+  color: color-mix(in srgb, #ffd7aa 90%, var(--text));
+}
+
 .profileStatus.is-locked {
   max-width: 260px;
   white-space: normal;
@@ -2377,6 +2382,14 @@ html.site-controls-hidden .siteControls {
   background: color-mix(in srgb, var(--accent) 12%, var(--panel2));
   color: color-mix(in srgb, var(--text) 96%, white);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.profileBtn.is-replace-target {
+  opacity: 1;
+  border-color: color-mix(in srgb, #ffb16a 62%, var(--border));
+  background: color-mix(in srgb, #ff9c43 14%, var(--panel2));
+  color: color-mix(in srgb, #fff6ea 94%, var(--text));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ffc287 32%, transparent);
 }
 
 .ctrlBtn:hover {

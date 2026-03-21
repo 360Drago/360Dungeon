@@ -398,6 +398,14 @@ html.mobile-compat .profileStatus.is-temp-shared-warning {
   max-width: 210px;
 }
 
+html.mobile-compat .profileStatus.is-temp-shared-confirm {
+  max-width: 210px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+
 html.mobile-compat .profileStatus.is-locked {
   max-width: 190px;
   white-space: normal;
