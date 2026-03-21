@@ -1,0 +1,26 @@
+/* css/token-shop-overrides.css
+   Token Shop: prevent header/card overlap when dungeon is selected while keeping header accessible.
+*/
+
+body.token-shop-active.stage-dungeon .heroHeader,
+body.token-shop-active.stage-tier .heroHeader {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  max-height: none;
+  margin-top: 0;
+  margin-bottom: 0;
+  gap: 8px;
+}
+
+/* Keep title block sizing consistent across inline tools */
+body.token-shop-active.stage-dungeon .headerGrid,
+body.token-shop-active.stage-tier .headerGrid {
+  height: clamp(140px, 22vh, 200px);
+}
+
+/* Prevent the card grid from translating upward into the header space */
+body.token-shop-active.stage-dungeon .cardStage,
+body.token-shop-active.stage-tier .cardStage {
+  transform: translateY(0px);
+}

@@ -1,0 +1,675 @@
+﻿/* css/mobile-compat.css
+   Mobile compatibility layer loaded after base styles.
+   Keeps desktop layout intact and only applies when html.mobile-compat is present.
+*/
+
+html.mobile-compat {
+  --mobile-safe-left: env(safe-area-inset-left, 0px);
+  --mobile-safe-right: env(safe-area-inset-right, 0px);
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-safe-x: max(var(--mobile-safe-left), var(--mobile-safe-right));
+  --mobile-edge-pad: 16px;
+  --mobile-landing-inset: 8px;
+  --mobile-viewport-w: 100vw;
+  --mobile-content-w: min(
+    var(--maxw),
+    calc(
+      var(--mobile-viewport-w) -
+      (var(--mobile-edge-pad) * 2) -
+      (var(--mobile-safe-x) * 2)
+    )
+  );
+}
+
+html.mobile-compat,
+html.mobile-compat body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+html.mobile-compat body {
+  min-height: 100%;
+  padding-bottom: var(--mobile-safe-bottom);
+}
+
+html.mobile-compat .wrap {
+  width: 100%;
+  max-width: 100%;
+  padding: 12px calc(var(--mobile-edge-pad) + var(--mobile-safe-x)) max(18px, var(--api-source-reserve-bottom, 18px))
+    calc(var(--mobile-edge-pad) + var(--mobile-safe-x));
+  margin-inline: auto;
+}
+
+html.mobile-compat .apiSourceTag {
+  position: static;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: auto;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px auto calc(8px + var(--mobile-safe-bottom));
+  padding: 0 calc(var(--mobile-edge-pad) + var(--mobile-safe-x));
+  box-sizing: border-box;
+  justify-items: end;
+  gap: 4px;
+  transform: none !important;
+  opacity: 0.82;
+  transition: opacity 180ms ease;
+  will-change: auto;
+}
+
+html.mobile-compat .apiSourceTag.is-hidden {
+  display: none;
+  transform: none !important;
+  opacity: 0;
+}
+
+html.mobile-compat .hero,
+html.mobile-compat .cardStage,
+html.mobile-compat .tierRow,
+html.mobile-compat .selectionBar,
+html.mobile-compat .simpleStage,
+html.mobile-compat .options,
+html.mobile-compat #tokenShopInline,
+html.mobile-compat #keysInline {
+  width: min(100%, var(--mobile-content-w));
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+html.mobile-compat .heroHeader,
+html.mobile-compat .headerGrid {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+html.mobile-compat .cardGrid,
+html.mobile-compat .optionsHeader,
+html.mobile-compat .optionsTitle,
+html.mobile-compat .optionsRight,
+html.mobile-compat .panel,
+html.mobile-compat .panelToggle,
+html.mobile-compat .panelToggleLeft,
+html.mobile-compat .panelToggleRight,
+html.mobile-compat .panelBody,
+html.mobile-compat .choiceMain,
+html.mobile-compat .fieldGrid,
+html.mobile-compat .field,
+html.mobile-compat .row,
+html.mobile-compat .simpleCard,
+html.mobile-compat .simpleCardHeader,
+html.mobile-compat .simpleResultsHeader,
+html.mobile-compat .simpleHeaderLeft,
+html.mobile-compat .statusStack,
+html.mobile-compat .statusLine,
+html.mobile-compat .cardTop,
+html.mobile-compat .cardText {
+  min-width: 0;
+}
+
+html.mobile-compat body:not(.stage-dungeon) .heroHeader {
+  width: 100%;
+  padding: 14px 0 12px;
+  margin-top: max(6px, var(--mobile-top-overlay-h, var(--mobile-site-controls-h, 44px)));
+  max-height: none;
+  gap: 10px;
+  margin-inline: auto;
+}
+
+/* Keep landing cards/row centered with even side gutters. */
+html.mobile-compat body:not(.stage-dungeon) .cardStage,
+html.mobile-compat body:not(.stage-dungeon) .selectionBar,
+html.mobile-compat body:not(.stage-dungeon) .tierRow,
+html.mobile-compat body:not(.stage-dungeon) .quickStartHint {
+  width: min(100%, calc(var(--mobile-content-w) - (var(--mobile-landing-inset) * 2)));
+  margin-inline: auto;
+}
+
+html.mobile-compat body.stage-dungeon .heroHeader {
+  margin-top: 6px;
+}
+
+html.mobile-compat body.stage-dungeon .heroHeader,
+html.mobile-compat body.stage-tier .heroHeader {
+  opacity: 1 !important;
+  transform: translateY(0px) !important;
+  max-height: none !important;
+  margin-top: max(6px, var(--mobile-top-overlay-h, var(--mobile-site-controls-h, 44px))) !important;
+  margin-bottom: 8px !important;
+  pointer-events: auto !important;
+}
+
+html.mobile-compat body.stage-dungeon .cardStage,
+html.mobile-compat body.stage-tier .cardStage {
+  transform: translateY(0px) !important;
+}
+
+@media (max-width: 760px) {
+  html.mobile-compat .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  html.mobile-compat .cardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  html.mobile-compat .cardStage {
+    width: min(100%, calc(var(--mobile-content-w) - 6px));
+  }
+
+  html.mobile-compat .card {
+    padding: 13px 12px;
+  }
+
+  html.mobile-compat .cardText h2 {
+    font-size: clamp(13px, 4.8vw, 15px);
+    line-height: 1.15;
+  }
+}
+
+html.mobile-compat .selectionBar {
+  margin-top: 10px;
+}
+
+html.mobile-compat .headerGrid {
+  height: clamp(112px, 18vh, 160px);
+  border-radius: 18px;
+}
+
+html.mobile-compat .brand {
+  font-size: clamp(40px, 12vw, 62px);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Touch devices can hold :hover state and leave the title offset. Keep it centered. */
+html.mobile-compat .hoverCell {
+  cursor: default;
+}
+
+html.mobile-compat .headerGrid:hover .brand,
+html.mobile-compat .hover-1:hover~.brand,
+html.mobile-compat .hover-2:hover~.brand,
+html.mobile-compat .hover-3:hover~.brand,
+html.mobile-compat .hover-4:hover~.brand,
+html.mobile-compat .hover-5:hover~.brand,
+html.mobile-compat .hover-6:hover~.brand,
+html.mobile-compat .hover-7:hover~.brand,
+html.mobile-compat .hover-8:hover~.brand,
+html.mobile-compat .hover-9:hover~.brand {
+  text-shadow: none;
+  transform: translate(0px, -50%);
+}
+
+html.mobile-compat .subtitleRow {
+  width: 100%;
+  max-width: 480px;
+  justify-content: center;
+  gap: 8px;
+  row-gap: 8px;
+}
+
+html.mobile-compat .subtitleRow .subtitle {
+  flex: 0 0 100%;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+html.mobile-compat .subtitleRow .modeTgl {
+  padding: 5px 9px;
+  gap: 7px;
+  max-width: 100%;
+}
+
+html.mobile-compat .subtitleRow .modeTglText {
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+html.mobile-compat .cardStage {
+  margin-top: 6px;
+}
+
+html.mobile-compat .tierRow {
+  margin-top: 10px;
+  padding: 10px 8px;
+}
+
+html.mobile-compat .tierInner {
+  width: 100%;
+}
+
+html.mobile-compat .simpleCard {
+  width: 100%;
+  padding: 14px 12px;
+  margin-inline: auto;
+}
+
+html.mobile-compat .simpleCardHeader {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+html.mobile-compat #simplePricingLine,
+html.mobile-compat #pricingSummaryLine,
+html.mobile-compat #runSummaryLine {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+html.mobile-compat .optionsHeader {
+  flex-wrap: wrap;
+  row-gap: 12px;
+  padding: 12px;
+}
+
+html.mobile-compat .optionsRight {
+  width: 100%;
+  justify-items: start;
+}
+
+html.mobile-compat .statusStack {
+  width: 100%;
+  max-width: none;
+}
+
+html.mobile-compat .statusLine .value {
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.mobile-compat .panelToggle {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 8px;
+}
+
+html.mobile-compat .panelToggleRight {
+  margin-left: auto;
+}
+
+html.mobile-compat .panelSub {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+html.mobile-compat .siteControls {
+  top: calc(8px + var(--mobile-safe-top));
+  right: calc(var(--mobile-edge-pad) + var(--mobile-safe-x));
+  gap: 6px;
+  max-width: calc(
+    var(--mobile-viewport-w) -
+    (var(--mobile-edge-pad) * 2) -
+    (var(--mobile-safe-x) * 2)
+  );
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+html.mobile-compat .siteControls .profileWrap {
+  order: 1;
+}
+
+html.mobile-compat .siteControls .siteAppearanceControls {
+  order: 2;
+}
+
+html.mobile-compat .siteControls .siteWatermark {
+  order: 3;
+  flex: 1 1 100%;
+  justify-content: flex-end;
+  max-width: 100%;
+  padding-right: 2px;
+}
+
+html.mobile-compat .siteWatermark {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  max-width: 32vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.mobile-compat .siteAppearanceControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html.mobile-compat .ctrlBtn {
+  height: 32px;
+  padding: 0 10px;
+  gap: 6px;
+}
+
+html.mobile-compat #langBtn {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+
+html.mobile-compat #langBtn .ctrlText {
+  display: none;
+}
+
+html.mobile-compat .profileWrap {
+  gap: 2px;
+}
+
+html.mobile-compat .profileMain {
+  gap: 4px;
+}
+
+html.mobile-compat .profileSlots {
+  gap: 3px;
+}
+
+html.mobile-compat .profileStatus {
+  left: 1px;
+  font-size: 8.5px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.mobile-compat .profileStatus.is-temp-shared {
+  max-width: 180px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+
+html.mobile-compat .profileStatus.is-temp-shared-warning {
+  max-width: 210px;
+}
+
+html.mobile-compat .profileStatus.is-locked {
+  max-width: 190px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+
+html.mobile-compat .profileShareBtn {
+  width: 32px;
+  padding: 0;
+}
+
+html.mobile-compat .profileShareBtn::after {
+  top: calc(100% + 6px);
+  padding: 4px 7px;
+  font-size: 9px;
+}
+
+html.mobile-compat .shareFallbackOverlay {
+  padding: 14px;
+}
+
+html.mobile-compat .shareFallbackDialog {
+  gap: 10px;
+  padding: 15px;
+  border-radius: 18px;
+}
+
+html.mobile-compat .shareFallbackTitle {
+  font-size: 18px;
+}
+
+html.mobile-compat .shareFallbackBody {
+  font-size: 12.5px;
+}
+
+html.mobile-compat .shareFallbackField {
+  min-height: 104px;
+  font-size: 12px;
+}
+
+html.mobile-compat .shareFallbackActions {
+  justify-content: flex-start;
+}
+
+html.mobile-compat .shareFallbackBtn {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+html.mobile-compat .profileBtn {
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
+  font-size: 11px;
+}
+
+html.mobile-compat .simLine {
+  min-height: 20px;
+}
+
+html.mobile-compat .simCountWrap {
+  min-width: 0;
+}
+
+html.mobile-compat .panelHead {
+  flex-wrap: wrap;
+  row-gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 4px;
+}
+
+html.mobile-compat .panelHead h4 {
+  margin-right: auto;
+}
+
+html.mobile-compat #tokenShopInline,
+html.mobile-compat #keysInline {
+  overflow-x: hidden;
+}
+
+html.mobile-compat #tokenShopInline .panelHead {
+  align-items: center;
+}
+
+html.mobile-compat #tokenShopInline .shopActions {
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+html.mobile-compat #tokenShopInline .tokenTable {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  font-size: clamp(12px, 2.8vw, 14px);
+}
+
+html.mobile-compat #tokenShopInline .tokenTable th,
+html.mobile-compat #tokenShopInline .tokenTable td {
+  padding: 7px 6px;
+}
+
+html.mobile-compat #tokenShopInline .tokenTable th:nth-child(1),
+html.mobile-compat #tokenShopInline .tokenTable td:nth-child(1) {
+  width: 43%;
+}
+
+html.mobile-compat #tokenShopInline .tokenTable th:nth-child(2),
+html.mobile-compat #tokenShopInline .tokenTable td:nth-child(2) {
+  width: 14%;
+}
+
+html.mobile-compat #tokenShopInline .tokenTable th:nth-child(3),
+html.mobile-compat #tokenShopInline .tokenTable td:nth-child(3),
+html.mobile-compat #tokenShopInline .tokenTable th:nth-child(4),
+html.mobile-compat #tokenShopInline .tokenTable td:nth-child(4) {
+  width: 21.5%;
+}
+
+html.mobile-compat #tokenShopInline .tokenTable td:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.mobile-compat #tokenShopInline .tokenTable td:first-child > span {
+  display: inline-block;
+  max-width: calc(100% - 30px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+html.mobile-compat #tokenShopInline .bestBadge {
+  margin-left: 5px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+html.mobile-compat #tokenShopInline .icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+
+html.mobile-compat #tokenShopInline .priceMain {
+  font-size: 13px;
+}
+
+html.mobile-compat #tokenShopInline .priceSub {
+  font-size: 11px;
+}
+
+html.mobile-compat #tokenShopInline .lineWrap {
+  width: 64px;
+  height: 14px;
+  margin-top: 4px;
+}
+
+html.mobile-compat #tokenShopInline .miniBtn {
+  padding: 0 9px;
+  height: 30px;
+}
+
+html.mobile-compat #keysInline .keysFoot {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}
+
+html.mobile-compat #keysInline .keysMiniHost {
+  width: 100%;
+  overflow: hidden;
+}
+
+html.mobile-compat #keysInline .keysMiniTable {
+  width: 100%;
+  table-layout: fixed;
+}
+
+html.mobile-compat #keysInline .keysMiniTable th:first-child,
+html.mobile-compat #keysInline .keysMiniTable td:first-child {
+  width: 46%;
+}
+
+html.mobile-compat #keysInline .keysMiniTable th:nth-child(2),
+html.mobile-compat #keysInline .keysMiniTable td:nth-child(2),
+html.mobile-compat #keysInline .keysMiniTable th:nth-child(3),
+html.mobile-compat #keysInline .keysMiniTable td:nth-child(3) {
+  width: 27%;
+}
+
+html.mobile-compat #keysInline .keysMiniTable .labelCell {
+  min-width: 0;
+}
+
+html.mobile-compat .overviewLoot {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+html.mobile-compat.mobile-compat-tight .headerGrid {
+  height: clamp(104px, 16vh, 146px);
+}
+
+html.mobile-compat.mobile-compat-tight .brand {
+  font-size: clamp(34px, 10.5vw, 54px);
+}
+
+html.mobile-compat.mobile-compat-tight .subtitleRow .modeTgl {
+  padding: 4px 8px;
+}
+
+html.mobile-compat.mobile-compat-xs .ctrlBtn {
+  height: 30px;
+  padding: 0 8px;
+}
+
+html.mobile-compat.mobile-compat-xs .profileShareBtn {
+  width: 30px;
+}
+
+html.mobile-compat.mobile-compat-xs .profileBtn {
+  width: 24px;
+  min-width: 24px;
+  font-size: 10.5px;
+}
+
+html.mobile-compat.mobile-compat-xs .siteWatermark {
+  height: 30px;
+  padding: 0 6px;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  max-width: 30vw;
+}
+
+html.mobile-compat.mobile-compat-xs .brand {
+  font-size: clamp(32px, 10vw, 46px);
+}
+
+html.mobile-compat.mobile-compat-xs .subtitleRow .modeTglText {
+  font-size: 11px;
+}
+
+html.mobile-compat.mobile-compat-xs #tokenShopInline .lineWrap {
+  width: 56px;
+}
+
+html.mobile-compat.mobile-compat-xs #tokenShopInline .tokenTable th,
+html.mobile-compat.mobile-compat-xs #tokenShopInline .tokenTable td {
+  padding: 6px 5px;
+}
+
+@media (max-width: 720px) {
+  html.mobile-compat .overviewLoot {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  html.mobile-compat .panel {
+    border-radius: 16px;
+  }
+
+  html.mobile-compat .panelToggle {
+    padding: 12px;
+  }
+
+  html.mobile-compat .panelBody {
+    padding-inline: 12px;
+  }
+}
