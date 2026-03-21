@@ -1,0 +1,838 @@
+﻿<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>360Dungeon | MilkyWayIdle Dungeon Profit Calculator</title>
+  <meta name="description" content="Optimize MilkyWayIdle dungeon runs with profit calculations, chest EV, key planning, token shop value, and zone comparison." />
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+  <meta name="theme-color" content="#18181b" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="application-name" content="360Dungeon" />
+  <meta name="apple-mobile-web-app-title" content="360Dungeon" />
+  <meta name="format-detection" content="telephone=no" />
+  <!-- Public URL block: update this group when the site moves to its final domain. -->
+  <link rel="canonical" href="https://360-dungon.vercel.app/" />
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="./assets/icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" sizes="180x180" />
+  <link rel="manifest" href="./site.webmanifest" />
+  <script>
+    (() => {
+      try {
+        const raw = localStorage.getItem("site.theme");
+        const override = (raw === "light" || raw === "dark") ? raw : "";
+        const prefersDark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        const theme = override || (prefersDark ? "dark" : "light");
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", theme === "light" ? "#f6f7fb" : "#18181b");
+      } catch (_) { }
+    })();
+  </script>
+  <meta property="og:site_name" content="360Dungeon" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:url" content="https://360-dungon.vercel.app/" />
+  <meta property="og:title" content="360Dungeon | MilkyWayIdle Dungeon Profit Calculator" />
+  <meta property="og:description" content="Optimize MilkyWayIdle dungeon runs with profit calculations, chest EV, key planning, token shop value, and zone comparison." />
+  <meta property="og:image" content="https://360-dungon.vercel.app/assets/social-preview.png?v=20260320a" />
+  <meta property="og:image:secure_url" content="https://360-dungon.vercel.app/assets/social-preview.png?v=20260320a" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="360Dungeon preview card with a star fragment icon and dungeon calculator tools." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="360Dungeon | MilkyWayIdle Dungeon Profit Calculator" />
+  <meta name="twitter:description" content="Optimize MilkyWayIdle dungeon runs with profit calculations, chest EV, key planning, token shop value, and zone comparison." />
+  <meta name="twitter:image" content="https://360-dungon.vercel.app/assets/social-preview.png?v=20260320a" />
+  <meta name="twitter:image:alt" content="360Dungeon preview card with a star fragment icon and dungeon calculator tools." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@900&display=swap"
+    rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/landing.css?v=20260310j" />
+  <link rel="stylesheet" href="./css/token-shop-overrides.css" />
+  <link rel="stylesheet" href="./css/mobile-compat.css?v=20260310j" />
+  <link rel="stylesheet" href="./css/tutorial.css?v=20260310j" />
+  <script src="./js/site-ui.js?v=20260310j" defer></script>
+  <script src="./js/mobile-compat.js?v=20260310j" defer></script>
+</head>
+
+<body>
+  <div id="calcErrorBanner" class="calc-error hidden" role="alert"></div>
+  <main class="wrap">
+    <section class="hero" aria-label="360Dungeon landing">
+
+      <!-- HEADER (Style 1) -->
+      <div class="heroHeader" id="heroHeader" aria-label="Landing header">
+        <div class="headerGrid" aria-label="360Dungeon title hover area">
+          <div class="hoverCell hover-1" aria-hidden="true"></div>
+          <div class="hoverCell hover-2" aria-hidden="true"></div>
+          <div class="hoverCell hover-3" aria-hidden="true"></div>
+          <div class="hoverCell hover-4" aria-hidden="true"></div>
+          <div class="hoverCell hover-5" aria-hidden="true"></div>
+          <div class="hoverCell hover-6" aria-hidden="true"></div>
+          <div class="hoverCell hover-7" aria-hidden="true"></div>
+          <div class="hoverCell hover-8" aria-hidden="true"></div>
+          <div class="hoverCell hover-9" aria-hidden="true"></div>
+
+          <h1 class="brand" id="brand" aria-label="360Dungeon">360Dungeon</h1>
+        </div>
+
+        <div class="subtitleRow">
+          <input id="advMode" class="modeTglInp" type="checkbox" />
+          <label class="modeTgl" for="advMode">
+            <span class="modeTglBox" aria-hidden="true">
+              <svg width="12" height="10" viewBox="0 0 12 10">
+                <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
+              </svg>
+            </span>
+            <span class="modeTglText">Advanced</span>
+          </label>
+          <input id="zoneCompareToggle" class="modeTglInp" type="checkbox" />
+          <label class="modeTgl modeTglSm" for="zoneCompareToggle">
+            <span class="modeTglBox" aria-hidden="true">
+              <svg width="12" height="10" viewBox="0 0 12 10">
+                <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
+              </svg>
+            </span>
+            <span class="modeTglText">Zone Compare</span>
+          </label>
+          <input id="tokenShopToggle" class="modeTglInp" type="checkbox" />
+          <label class="modeTgl modeTglSm" for="tokenShopToggle">
+            <span class="modeTglBox" aria-hidden="true">
+              <svg width="12" height="10" viewBox="0 0 12 10">
+                <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
+              </svg>
+            </span>
+            <span class="modeTglText">Token Shop</span>
+          </label>
+          <input id="keysToggle" class="modeTglInp" type="checkbox" />
+          <label class="modeTgl modeTglSm" for="keysToggle">
+            <span class="modeTglBox" aria-hidden="true">
+              <svg width="12" height="10" viewBox="0 0 12 10">
+                <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
+              </svg>
+            </span>
+            <span class="modeTglText">Keys</span>
+          </label>
+
+        </div>
+
+
+
+      </div>
+
+      <!-- DUNGEON CARDS -->
+      <div class="cardStage" aria-label="Dungeon selection">
+        <div class="cardGrid" id="cardGrid" role="list">
+
+
+
+          <button class="card" type="button" role="listitem" data-dungeon="chimerical_den"
+            style="--card-accent:#34d399;" aria-pressed="false">
+
+            <div class="cardTop">
+              <span class="icon" aria-hidden="true">
+                <img src="./assets/Svg/Chimerical_den.svg" alt="" width="28" height="28" />
+              </span>
+
+              <div class="cardText">
+                <h2>Chimerical Den</h2>
+                <p class="simLine">
+                  Calculations:
+                  <span class="simCountWrap">
+                    <span class="simCount" data-count-for="chimerical_den">0</span>
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div class="shine" aria-hidden="true"></div>
+            <div class="background" aria-hidden="true">
+              <div class="tiles">
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+              </div>
+              <div class="line line-1"></div>
+              <div class="line line-2"></div>
+              <div class="line line-3"></div>
+            </div>
+          </button>
+
+          <button class="card" type="button" role="listitem" data-dungeon="sinister_circus"
+            style="--card-accent:#f472b6;" aria-pressed="false">
+
+            <div class="cardTop">
+              <span class="icon" aria-hidden="true">
+                <img src="./assets/Svg/Sinister_circus.svg" alt="" width="28" height="28" />
+              </span>
+
+              <div class="cardText">
+                <h2>Sinister Circus</h2>
+                <p class="simLine">
+                  Calculations:
+                  <span class="simCountWrap">
+                    <span class="simCount" data-count-for="sinister_circus">0</span>
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div class="shine" aria-hidden="true"></div>
+            <div class="background" aria-hidden="true">
+              <div class="tiles">
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+              </div>
+              <div class="line line-1"></div>
+              <div class="line line-2"></div>
+              <div class="line line-3"></div>
+            </div>
+          </button>
+
+          <button class="card" type="button" role="listitem" data-dungeon="enchanted_fortress"
+            style="--card-accent:#a78bfa;" aria-pressed="false">
+
+            <div class="cardTop">
+              <span class="icon" aria-hidden="true">
+                <img src="./assets/Svg/Enchanted_fortress.svg" alt="" width="28" height="28" />
+              </span>
+
+              <div class="cardText">
+                <h2>Enchanted Fortress</h2>
+                <p class="simLine">
+                  Calculations:
+                  <span class="simCountWrap">
+                    <span class="simCount" data-count-for="enchanted_fortress">0</span>
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div class="shine" aria-hidden="true"></div>
+            <div class="background" aria-hidden="true">
+              <div class="tiles">
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+              </div>
+              <div class="line line-1"></div>
+              <div class="line line-2"></div>
+              <div class="line line-3"></div>
+            </div>
+          </button>
+
+          <button class="card" type="button" role="listitem" data-dungeon="pirate_cove" style="--card-accent:#fb923c;"
+            aria-pressed="false">
+
+            <div class="cardTop">
+              <span class="icon" aria-hidden="true">
+                <img src="./assets/Svg/Pirate_cove.svg" alt="" width="28" height="28" />
+              </span>
+
+              <div class="cardText">
+                <h2>Pirate Cove</h2>
+                <p class="simLine">
+                  Calculations:
+                  <span class="simCountWrap">
+                    <span class="simCount" data-count-for="pirate_cove">0</span>
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div class="shine" aria-hidden="true"></div>
+            <div class="background" aria-hidden="true">
+              <div class="tiles">
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+                <div class="tile"></div>
+              </div>
+              <div class="line line-1"></div>
+              <div class="line line-2"></div>
+              <div class="line line-3"></div>
+            </div>
+          </button>
+
+        </div>
+      </div>
+      <p class="subtitle quickStartHint" id="quickStartHint">Pick a dungeon for quick start</p>
+
+      <!-- SELECTION BAR -->
+      <div class="selectionBar" id="selectionBar" aria-hidden="true">
+        <div class="barLine" aria-hidden="true"></div>
+        <div class="barMarker" id="barMarker" aria-hidden="true"></div>
+      </div>
+
+      <!-- TIER ROW -->
+      <div class="tierRow" id="tierRow" aria-label="Tier selection">
+        <div class="tierInner">
+          <button class="tierBtn" type="button" data-tier="T0" aria-pressed="false">T0</button>
+          <button class="tierBtn" type="button" data-tier="T1" aria-pressed="false">T1</button>
+          <button class="tierBtn" type="button" data-tier="T2" aria-pressed="false">T2</button>
+        </div>
+        <div class="tierHint" id="tierHint">Choose a tier to unlock options.</div>
+        <section id="tokenShopInline" class="tokenShopPanel" hidden aria-label="Token Shop for selected dungeon">
+        </section>
+        <section id="keysInline" class="tokenShopPanel" hidden aria-label="Keys profitability">
+        </section>
+        <section id="zoneCompareInline" class="tokenShopPanel zoneComparePanel" hidden aria-label="Dungeon zone compare">
+        </section>
+      </div>
+
+
+      <!-- SIMPLE MODE (non-advanced) -->
+      <section class="simpleStage" id="simpleStage" aria-label="Quick calculator">
+        <div class="simpleCard" id="simpleInputsCard" aria-label="Quick inputs">
+          <div class="simpleCardHeader">
+            <div class="simpleHeaderLeft">
+              <h3 class="simpleTitle">Quick Calculator</h3>
+              <div class="muted small" id="simplePricingLine">Official API • Last refresh: —</div>
+            </div>
+            <button class="miniBtn tipHost" type="button" id="simpleOfficialRefreshBtn" data-tip="Refresh Official API prices">Refresh prices</button>
+          </div>
+
+          <div class="simpleGrid">
+            <div class="simpleField" aria-label="Combat buff input">
+              <div class="simpleLabelRow">
+                <div class="simpleLabelWrap">
+                  <label class="simpleLabel" for="simpleBuffCustom">Combat buff: <span class="rangeValueNum" id="simpleBuffValue">20</span></label>
+                  <span class="tipHost simpleTip tipSingleLine" data-tip="Current Combat Drop Quantity (Found in Game)" tabindex="0" role="button" aria-label="Combat buff help">?</span>
+                </div>
+              </div>
+
+              <div class="rangeWrap">
+                <input id="simpleBuffCustom" class="rangeInput" type="range" min="0" max="20" step="1" value="20"
+                  list="buffTicks" aria-label="Combat buff slider (0–20)" />
+                <div class="rangeTicks" aria-hidden="true"></div>
+              </div>
+
+              <div class="fieldError" id="simpleBuffErr">Enter a number from 0 to 20.</div>
+            </div>
+            <div class="simpleField" aria-label="Consumables per day input">
+              <div class="simpleLabelRow">
+                <div class="simpleLabelWrap">
+                  <label class="simpleLabel" for="foodPerDay">Consumables Per Day</label>
+                  <span class="tipHost simpleTip tipSingleLine" data-tip="Default 10m per day" tabindex="0" role="button" aria-label="Consumables help">?</span>
+                </div>
+              </div>
+              <input id="foodPerDay" type="text" inputmode="decimal" placeholder="10m" aria-label="Consumables per day cost" />
+            </div>
+
+
+            <div class="simpleField" aria-label="Clear time input">
+              <label class="simpleLabel" for="simpleClearTime">Clear time (minutes) <span class="reqStar"
+                  aria-hidden="true">*</span></label>
+              <input id="simpleClearTime" type="number" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 22"
+                aria-label="Clear time in minutes" />
+              <div class="fieldError" id="simpleClearTimeErr">Enter a valid number of minutes.</div>
+            </div>
+          </div>
+
+          <div class="simpleActions">
+            <button class="simBtn" type="button" id="simpleSimulateBtn"><span>Calculate</span></button>
+          </div>
+        </div>
+
+        <div class="simpleCard simpleResults" id="simpleResultsCard" hidden aria-label="Quick results">
+          <div class="simpleResultsHeader">
+            <div class="resultsHeaderLeft">
+              <h3 class="simpleTitle">Results</h3>
+              <div class="muted small" id="simpleResultsSub">Standard: instant sell @ bid − 2% tax; keys @ bid.</div>
+            </div>
+            <div class="resultsHeaderRight">
+              <div class="simpleToggleWrap">
+                <input id="toggleRange" class="modeTglInp" type="checkbox" />
+                <label class="modeTgl modeTglSm tipHost" for="toggleRange" data-tip="Show Low–High range">
+                  <span class="modeTglBox" aria-hidden="true">
+                    <svg width="12" height="10" viewBox="0 0 12 10">
+                      <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
+                    </svg>
+                  </span>
+                  <span class="modeTglText">Show Low–High range</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="simpleStatsGrid">
+            <div class="simpleStat">
+              <div class="muted small">Runs / day</div>
+              <div class="statValueRow">
+                <img class="statIcon" id="simpleDungeonIcon" src="./assets/Svg/Pirate_cove.svg" alt="" width="28" height="28" aria-hidden="true" />
+                <div class="statValue" id="simpleRunsPerDay">—</div>
+              </div>
+            </div>
+
+            <div class="simpleStat">
+              <div class="muted small">Entry keys</div>
+              <div class="statValueRow">
+                <img class="statIcon" id="simpleEntryKeyIcon" src="./assets/Svg/Pirate_entry_key.svg" alt="" width="28" height="28" aria-hidden="true" />
+                <div class="statValue" id="simpleEntryKeys">—</div>
+              </div>
+            </div>
+
+            <div class="simpleStat">
+              <div class="muted small">Chest keys</div>
+              <div class="statValueRow">
+                <img class="statIcon" id="simpleChestKeyIcon" src="./assets/Svg/Pirate_chest_key.svg" alt="" width="28" height="28" aria-hidden="true" />
+                <div class="statValue" id="simpleChestKeys">—</div>
+              </div>
+            </div>
+
+            <div class="simpleStat tipHost" id="simpleProfitBox" data-tip="">
+              <div class="muted small">Profit</div>
+              <div class="statValue" id="simpleProfitDay">—</div>
+              <div class="muted small" id="simpleProfitHour">—</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- OPTIONS -->
+      <section class="options" id="options" aria-label="Calculator options">
+        <div class="optionsHeader">
+          <div class="optionsTitle">
+            <h3>Calculator Overview</h3>
+            <p class="muted" id="selectionSummary">Select a dungeon and tier.</p>
+
+            <!-- Item overview (changes based on selected dungeon) -->
+            <div class="overviewLoot" id="overviewLoot" aria-label="Dungeon item overview">
+              <div class="lootBox" data-loot="entry">
+                <img class="lootIcon" id="lootEntryIcon" alt="Entry key" />
+                <div class="lootMeta">
+                  <div class="lootName">Entry Key</div>
+                  <div class="lootQty">x <span id="lootEntryQty">0</span></div>
+                  <div class="lootSub">Each: <span id="lootEntryEach">—</span></div>
+                  <div class="lootSub">Total: <span id="lootEntryTotal">—</span></div>
+                </div>
+              </div>
+
+              <div class="lootBox" data-loot="chestKey">
+                <img class="lootIcon" id="lootChestKeyIcon" alt="Chest key" />
+                <div class="lootMeta">
+                  <div class="lootName">Chest Key</div>
+                  <div class="lootQty">x <span id="lootChestKeyQty">0</span></div>
+                  <div class="lootSub">Each: <span id="lootChestKeyEach">—</span></div>
+                  <div class="lootSub">Total: <span id="lootChestKeyTotal">—</span></div>
+                </div>
+              </div>
+
+              <div class="lootBox" data-loot="chest">
+                <img class="lootIcon" id="lootChestIcon" alt="Chest" />
+                <div class="lootMeta">
+                  <div class="lootName">Chest</div>
+                  <div class="lootQty">x <span id="lootChestQty">0</span></div>
+                  <div class="lootSub">EV/chest: <span id="lootChestEv">—</span></div>
+                  <div class="lootSub">Token value: <span id="lootTokenValue">—</span></div>
+                </div>
+              </div>
+
+
+              <div class="lootBox" data-loot="refined" id="lootRefinedBox" tabindex="0" data-tip="">
+                <img class="lootIcon" id="lootRefinedIcon" alt="Refined chest" />
+                <div class="lootMeta">
+                  <div class="lootName">Refined Chest</div>
+                  <div class="lootQty">x <span id="lootRefinedQty">0</span></div>
+                  <div class="lootSub">EV/chest: <span id="lootRefinedChestEv">—</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+          <div class="optionsRight">
+            <button class="ghostBtn tipHost" type="button" id="resetBtn" data-tip="Reset selection">Reset</button>
+
+            <div class="statusStack" aria-label="Selection status">
+              <div class="statusLine"><span class="label">Dungeon</span><span class="value" id="statusDungeon">—</span>
+              </div>
+              <div class="statusLine"><span class="label">Tier</span><span class="value" id="statusTier">—</span></div>
+              <div class="statusLine"><span class="label">Pricing</span><span class="value" id="statusPricing">—</span>
+              </div>
+              <div class="statusLine"><span class="label">Clear</span><span class="value" id="statusClear">—</span>
+              </div>
+              <div class="statusLine"><span class="label">Buff</span><span class="value" id="statusBuff">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRICING MODEL (COLLAPSIBLE) -->
+        <div class="panel accordion" data-panel="pricing">
+          <button class="panelToggle" type="button" aria-expanded="false" aria-controls="panelPricingBody">
+            <div class="panelToggleLeft">
+              <h4>Pricing model</h4>
+              <div class="panelSub muted small" id="pricingSummaryLine">Official API • Last refresh: —</div>
+            </div>
+            <div class="panelToggleRight">
+              <div class="panelPill" id="pricingPill">Official</div>
+              <span class="chev" aria-hidden="true"></span>
+            </div>
+          </button>
+
+          <div class="panelBody" id="panelPricingBody">
+            <div class="pricingStack" role="radiogroup" aria-label="Pricing model choices">
+
+              <!-- Manual (above) -->
+              <label class="choiceCard" data-choice="manual">
+                <input class="choiceRadio" type="radio" name="pricing" value="manual" />
+                <div class="choiceMain">
+                  <div class="choiceTop">
+                    <div class="choiceName">Manual input</div>
+                    <div class="choiceTag">Override</div>
+                  </div>
+
+                  <div class="choiceDesc muted">
+                    Accepts: 600,000 • 600000 • 600k • 6m
+                  </div>
+
+                  <div class="fieldGrid">
+                    <div class="field">
+                      <label for="manualEntry">Entry Key Price</label>
+                      <input id="manualEntry" type="text" inputmode="text" placeholder="e.g. 600k" />
+                      <input id="manualEntrySlider" class="priceSlider" type="range" min="0" max="1000000" step="20000"
+                        value="0" />
+                      <div class="fieldError" id="manualEntryErr">Enter a value like 600k or 6m.</div>
+                    </div>
+
+                    <div class="field">
+                      <label for="manualChest">Chest Key Price</label>
+                      <input id="manualChest" type="text" inputmode="text" placeholder="e.g. 6m" />
+                      <input id="manualChestSlider" class="priceSlider" type="range" min="1000000" max="8000000"
+                        step="100000" value="1000000" />
+                      <div class="fieldError" id="manualChestErr">Enter a value like 600k or 6m.</div>
+                    </div>
+                  </div>
+                </div>
+              </label>
+
+              <!-- Official API (default, middle) -->
+              <label class="choiceCard isDefault" data-choice="official">
+                <input class="choiceRadio" type="radio" name="pricing" value="official" checked />
+                <div class="choiceMain">
+                  <div class="choiceTop">
+                    <div class="choiceName">Official API</div>
+                    <div class="choiceTag">
+                      Last refresh: <span class="mono" id="officialAge">—</span>
+                    </div>
+                  </div>
+
+                  <div class="choiceDesc muted">
+                    Uses the official pricing endpoint.
+                  </div>
+
+                  <div class="row">
+                    <button class="miniBtn" type="button" id="officialRefreshBtn">Refresh now</button>
+                    <div class="muted small" id="officialRefreshStamp"></div>
+                  </div>
+                </div>
+              </label>
+
+              <!-- Other API (below) -->
+              <label class="choiceCard" data-choice="other">
+                <input class="choiceRadio" type="radio" name="pricing" value="other" />
+                <div class="choiceMain">
+                  <div class="choiceTop">
+                    <div class="choiceName">Mooket API</div>
+                    <div class="choiceTag">Alt</div>
+                  </div>
+
+                  <div class="choiceDesc muted">
+                    Secondary endpoint for comparisons.
+                  </div>
+
+                  <div class="row">
+                    <button class="miniBtn" type="button" id="otherRefreshBtn">Refresh</button>
+                    <div class="muted small" id="otherStatus">Not refreshed yet.</div>
+                  </div>
+                </div>
+              </label>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- RUN INPUTS (COLLAPSIBLE) -->
+        <div class="panel accordion" data-panel="run">
+          <button class="panelToggle" type="button" aria-expanded="false" aria-controls="panelRunBody">
+            <div class="panelToggleLeft">
+              <h4>Player Information</h4>
+              <div class="panelSub muted small" id="runSummaryLine">Clear time: — • Buff: —</div>
+            </div>
+            <div class="panelToggleRight">
+              <div class="panelPill" id="runPill">Needed</div>
+              <span class="chev" aria-hidden="true"></span>
+            </div>
+          </button>
+
+          <div class="panelBody" id="panelRunBody">
+            <div class="fieldGrid">
+              <div class="field">
+                <div class="fieldLabelRow">
+                  <div class="simpleLabelWrap">
+                    <label for="playerBuff">Combat buff: <span class="rangeValueNum" id="playerBuffValue">20</span> <span class="reqStar" aria-hidden="true">*</span></label>
+                    <span class="tipHost simpleTip tipSingleLine" data-tip="Current Combat Drop Quantity (Found in Game)" tabindex="0" role="button" aria-label="Combat buff help">?</span>
+                  </div>
+                </div>
+                <div class="rangeWrap">
+                  <input id="playerBuff" class="requiredInput rangeInput" type="range" min="0" max="20" step="1" value="20"
+                    list="buffTicks" aria-label="Combat buff slider (0–20)" />
+                  <div class="rangeTicks" aria-hidden="true"></div>
+                </div>
+                <div class="fieldHint muted small">Required to calculate.</div>
+                <div class="fieldError" id="playerBuffErr">Enter a number from 0 to 20.</div>
+              </div>
+              <div class="field">
+                <div class="fieldLabelRow">
+                  <label for="advFoodPerDay">Consumables Per Day</label>
+                  <span class="tipHost tipSingleLine simpleTip" data-tip="Default 10m per day" tabindex="0" role="button" aria-label="Consumables help">?</span>
+                </div>
+                <input id="advFoodPerDay" type="text" inputmode="decimal" placeholder="10m" aria-label="Consumables per day cost" />
+              </div>
+
+
+
+              <div class="field">
+                <label for="clearTime">Clear time (minutes) <span class="reqStar" aria-hidden="true">*</span></label>
+                <input id="clearTime" class="requiredInput" type="number" inputmode="decimal" step="0.1" min="0"
+                  placeholder="e.g. 22" />
+                <div class="fieldHint muted small">Required to calculate.</div>
+                <div class="fieldError" id="clearTimeErr">Enter a valid number of minutes.</div>
+              </div>
+            </div>
+            <div class="runSimActions">
+              <button class="simBtn" type="button" id="simulateBtn"><span>Calculate</span></button>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="simpleCard simpleResults" id="advResultsCard" hidden aria-label="Advanced results">
+          <div class="simpleResultsHeader">
+            <div class="resultsHeaderLeft">
+              <h3 class="simpleTitle">Results</h3>
+              <div class="muted small" id="advResultsSub">Standard: instant sell @ bid − 2% tax; keys @ bid.</div>
+            </div>
+            <div class="resultsHeaderRight">
+              <div class="simpleToggleWrap">
+                <input id="advToggleRange" class="modeTglInp" type="checkbox" />
+                <label class="modeTgl modeTglSm tipHost" for="advToggleRange" data-tip="Show Low–High range">
+                  <span class="modeTglBox" aria-hidden="true">
+                    <svg width="12" height="10" viewBox="0 0 12 10">
+                      <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
+                    </svg>
+                  </span>
+                  <span class="modeTglText">Show Low–High range</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="simpleStatsGrid">
+            <div class="simpleStat">
+              <div class="muted small">Runs / day</div>
+              <div class="statValueRow">
+                <img class="statIcon" id="advDungeonIcon" src="./assets/Svg/Pirate_cove.svg" alt="" width="28" height="28" aria-hidden="true" />
+                <div class="statValue" id="advRunsPerDay">—</div>
+              </div>
+            </div>
+
+            <div class="simpleStat">
+              <div class="muted small">Entry keys</div>
+              <div class="statValueRow">
+                <img class="statIcon" id="advEntryKeyIcon" src="./assets/Svg/Pirate_entry_key.svg" alt="" width="28" height="28" aria-hidden="true" />
+                <div class="statValue" id="advEntryKeys">—</div>
+              </div>
+            </div>
+
+            <div class="simpleStat">
+              <div class="muted small">Chest keys</div>
+              <div class="statValueRow">
+                <img class="statIcon" id="advChestKeyIcon" src="./assets/Svg/Pirate_chest_key.svg" alt="" width="28" height="28" aria-hidden="true" />
+                <div class="statValue" id="advChestKeys">—</div>
+              </div>
+            </div>
+
+            <div class="simpleStat tipHost" id="advProfitBox" data-tip="">
+              <div class="muted small">Profit</div>
+              <div class="statValue" id="advProfitDay">—</div>
+              <div class="muted small" id="advProfitHour">—</div>
+            </div>
+          </div>
+        </div>
+
+        <section class="simpleCard lootOverrideSection advOnly manualLootCard" id="lootOverrideSection">
+          <div class="row spread">
+            <div>
+              <div class="muted small">Manual loot prices</div>
+              <div class="muted small">Override specific drop values used for EV calculations.</div>
+            </div>
+
+            <div class="checkSlide tipHost" id="lootOverrideToggleHost" data-tip="">
+              <input type="checkbox" id="lootOverrideToggle" />
+              <label for="lootOverrideToggle" aria-label="Manual loot prices toggle"></label>
+            </div>
+          </div>
+
+          <div class="lootOverrideControls">
+            <div class="row spread">
+              <div class="field lootOverrideFilterField">
+                <label for="lootOverrideFilter">Filter items</label>
+                <input id="lootOverrideFilter" type="text" inputmode="search" placeholder="Type to search…" />
+              </div>
+
+              <button class="ghostBtn tipHost" type="button" id="lootOverrideResetBtn" data-tip="Official API Prices">
+                Reset Loot Prices
+              </button>
+            </div>
+
+            <div class="fieldHint muted small" id="lootOverrideHint">
+              Prices shown are current market values (placeholder). Enter a value to override. Leave blank to use
+              the market.
+            </div>
+          </div>
+
+          <div class="lootOverrideList" id="lootOverrideList" role="list"></div>
+        </section>
+
+
+        <div class="toast" id="toast" aria-live="polite" aria-atomic="true"></div>
+      </section>
+
+    </section>
+  </main>
+
+  <footer class="creatorTag" id="creatorTag">
+    <span>Created by <strong>360Drago</strong></span>
+  </footer>
+  <div class="apiSourceTag" id="apiSourceTag" aria-live="polite" aria-atomic="true">
+    <div class="apiSourceLine">
+      <span class="apiSourceName" id="apiSourceOfficialLabel">Official</span>
+      <span class="apiSourceValue" id="apiSourceOfficialValue">—</span>
+    </div>
+    <div class="apiSourceLine">
+      <span class="apiSourceName" id="apiSourceOtherLabel">Mooket</span>
+      <span class="apiSourceValue" id="apiSourceOtherValue">—</span>
+    </div>
+  </div>
+
+  <!-- Easter egg walker -->
+  <div class="eggWalker" id="eggWalker" aria-hidden="true">
+    <img id="eggWalkerImg" alt="" />
+  </div>
+  <datalist id="buffTicks">
+    <option value="0"></option>
+    <option value="1"></option>
+    <option value="2"></option>
+    <option value="3"></option>
+    <option value="4"></option>
+    <option value="5"></option>
+    <option value="6"></option>
+    <option value="7"></option>
+    <option value="8"></option>
+    <option value="9"></option>
+    <option value="10"></option>
+    <option value="11"></option>
+    <option value="12"></option>
+    <option value="13"></option>
+    <option value="14"></option>
+    <option value="15"></option>
+    <option value="16"></option>
+    <option value="17"></option>
+    <option value="18"></option>
+    <option value="19"></option>
+    <option value="20"></option>
+  </datalist>
+  <!--
+    Runtime dependency order note (behavior-sensitive):
+    - Core runtime dependency scripts are deferred and execute in the order listed below.
+    - storage-shared.js provides shared localStorage helper primitives for runtime modules (site-ui, landing, chest-ev, init-loader, time-shared, inline panels).
+    - pricing-state-shared.js provides shared saved-pricing/key-price derivation helpers.
+    - pricing-refresh-shared.js provides shared refresh snapshot assembly/validation helpers.
+    - selection-ui-shared.js provides shared selected-button UI state helpers (`is-selected`, `aria-pressed`).
+    - ui-state-shared.js provides shared body stage and accordion panel open-state helpers.
+    - text-shared.js provides shared i18n fallback/interpolation and HTML/attribute escaping helpers.
+    - number-shared.js provides shared compact-number parse/normalization and compact coin-format helpers.
+    - player-input-shared.js provides shared clear-time/combat-buff parse+clamp helpers.
+    - dungeon-meta-shared.js provides shared dungeon uiKey metadata (name/short/market-hrid mapping).
+    - market-shared.js must load before modules that consume DungeonMarketShared.
+    - init_Character_data.js is loaded as executable data script and must load before init-loader.js.
+    - init-data-shared.js provides shared init-data lookup helpers for runtime modules (inline panels, chest EV, openable loot).
+    - item-hrid-shared.js provides shared /items/* HRID -> SVG filename/path helpers.
+    - time-shared.js provides shared age/timestamp formatting helpers for refresh timers and stamps.
+  -->
+  <script src="./js/storage-shared.js" defer></script>
+  <script src="./js/pricing-state-shared.js" defer></script>
+  <script src="./js/pricing-refresh-shared.js" defer></script>
+  <script src="./js/selection-ui-shared.js" defer></script>
+  <script src="./js/ui-state-shared.js" defer></script>
+  <script src="./js/text-shared.js" defer></script>
+  <script src="./js/number-shared.js" defer></script>
+  <script src="./js/player-input-shared.js" defer></script>
+  <script src="./js/dungeon-meta-shared.js" defer></script>
+  <script src="./js/market-shared.js" defer></script>
+  <script src="./js/init_Character_data.js" defer></script>
+  <script src="./js/init-loader.js" defer></script>
+  <script src="./js/init-data-shared.js" defer></script>
+  <script src="./js/item-hrid-shared.js" defer></script>
+  <script src="./js/time-shared.js" defer></script>
+  <script src="./js/openable-loot-raw.js" defer></script>
+  <script src="./js/calculations.js" defer></script>
+  <script src="./js/calc-core.js" defer></script>
+  <script src="./js/chest-ev.js" defer></script>
+  <script src="./js/landing.js" defer></script>
+  <script src="./js/token-shop-inline.js" defer></script>
+  <script src="./js/keys-inline.js" defer></script>
+  <script src="./js/zone-compare-inline.js" defer></script>
+  <script src="./js/devtools.js" defer></script>
+  <script src="./js/tutorial/tutorial-storage.js?v=20260310j" defer></script>
+  <script src="./js/tutorial/tutorial-i18n.js?v=20260310j" defer></script>
+  <script src="./js/tutorial/tutorial-guides.js?v=20260310j" defer></script>
+  <script src="./js/tutorial/tutorial-chapters.js?v=20260310j" defer></script>
+  <script src="./js/tutorial/tutorial-position.js?v=20260310j" defer></script>
+  <script src="./js/tutorial/tutorial-ui.js?v=20260310j" defer></script>
+  <script src="./js/tutorial/tutorial-engine.js?v=20260310j" defer></script>
+  <script src="./js/tutorial/tutorial-init.js?v=20260310j" defer></script>
+</body>
+
+</html>
+
+
+
+
