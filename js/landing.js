@@ -6,6 +6,7 @@
   const KEY_SELECTED_TIER = "dungeon.selectedTier";
   const KEY_PRICING_MODEL = "dungeon.pricingModel";
   const KEY_ADVANCED_MODE = "dungeon.advancedMode";
+  const KEY_VIEW_MODE = "dungeon.viewMode.v1";
   const KEY_LOOT_OVERRIDE_ENABLED = "dungeon.lootOverrideEnabled";
   const KEY_LOOT_PRICE_OVERRIDES = "dungeon.lootPriceOverrides";
   const KEY_FOOD_PER_DAY = "dungeon.foodPerDay";
@@ -68,6 +69,7 @@
   const ALLOWED_TIER_KEYS = new Set(
     tierButtons.map((btn) => String(btn?.dataset?.tier || "").trim().toUpperCase()).filter(Boolean)
   );
+  const ALLOWED_VIEW_MODES = new Set(["quick", "advanced", "tokenShop", "keys", "zoneCompare"]);
 
   function sanitizeSelectedDungeonKey(raw) {
     const key = String(raw == null ? "" : raw).trim().toLowerCase();
@@ -84,6 +86,17 @@
   function sanitizePricingModel(raw) {
     const model = String(raw == null ? "" : raw).trim().toLowerCase();
     return normalizeModelFromSource(model);
+  }
+
+  function sanitizeViewMode(raw) {
+    const normalized = String(raw == null ? "" : raw).trim().toLowerCase();
+    if (!normalized) return "";
+    if (normalized === "quick") return "quick";
+    if (normalized === "advanced") return "advanced";
+    if (normalized === "tokenshop" || normalized === "token") return "tokenShop";
+    if (normalized === "keys") return "keys";
+    if (normalized === "zonecompare" || normalized === "zone") return "zoneCompare";
+    return "";
   }
 
   const selectionSummary = document.getElementById("selectionSummary");
@@ -1714,6 +1727,28 @@
 
   // Advanced mode (UI toggle only for now)
   let advancedMode = storageGetItem(KEY_ADVANCED_MODE) === "1";
+  let savedViewMode = sanitizeViewMode(storageGetItem(KEY_VIEW_MODE));
+  if (!savedViewMode) savedViewMode = advancedMode ? "advanced" : "quick";
+  if (savedViewMode === "advanced") advancedMode = true;
+  else if (savedViewMode) advancedMode = false;
+  if (advModeToggle) advModeToggle.checked = savedViewMode === "advanced";
+  if (tokenShopToggle) tokenShopToggle.checked = savedViewMode === "tokenShop";
+  if (keysToggle) keysToggle.checked = savedViewMode === "keys";
+  if (zoneCompareToggle) zoneCompareToggle.checked = savedViewMode === "zoneCompare";
+
+  function currentTopViewMode() {
+    if (zoneCompareToggle?.checked) return "zoneCompare";
+    if (keysToggle?.checked) return "keys";
+    if (tokenShopToggle?.checked) return "tokenShop";
+    if (advancedMode || advModeToggle?.checked) return "advanced";
+    return "quick";
+  }
+
+  function persistCurrentViewMode() {
+    const mode = sanitizeViewMode(currentTopViewMode()) || "quick";
+    storageSetItem(KEY_VIEW_MODE, mode);
+    return mode;
+  }
   function resetResultsCardState(opts = {}) {
     const {
       resultsCardEl,
@@ -1778,6 +1813,7 @@
 
     if (advModeToggle) advModeToggle.checked = advancedMode;
     if (save) storageSetItem(KEY_ADVANCED_MODE, advancedMode ? "1" : "0");
+    persistCurrentViewMode();
   }
 
   // Initialize checkbox state + listener
@@ -1823,7 +1859,9 @@
 
   function applyInlineModePostToggle() {
     syncInlineModeBodyClasses();
-    if (autoSelectFirstDungeonForTokenShop()) return;
+    const autoSelectedTokenDungeon = autoSelectFirstDungeonForTokenShop();
+    persistCurrentViewMode();
+    if (autoSelectedTokenDungeon) return;
     // Recompute stage classes so quick/advanced panels hide/show correctly when top inline tools change.
     if (selectedDungeon) applySelectedStage(selectedTier);
     else applyLandingStage();
@@ -1832,6 +1870,16 @@
     validateAndSavePlayerInputs();
     updateAllSummaries();
     renderInlinePanels();
+  }
+
+  function restoreSavedViewModeOnInit() {
+    const inlineOn = !!(tokenShopToggle?.checked || keysToggle?.checked || zoneCompareToggle?.checked);
+    if (inlineOn) {
+      applyInlineModePostToggle();
+      return;
+    }
+    syncInlineModeBodyClasses();
+    persistCurrentViewMode();
   }
 
   function disableAdvancedModeIfEnabled() {
@@ -4046,7 +4094,7 @@ async function renderAdvancedResults() {
 
   function initializeUiOnInit() {
     restoreSelectionStateOnInit();
-    autoSelectFirstDungeonForTokenShop();
+    restoreSavedViewModeOnInit();
     applyPricingSelectionUi(pricingModel);
     updatePricingAvailability();
 

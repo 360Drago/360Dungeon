@@ -28,7 +28,7 @@
     const LANG_LABEL = { en: "EN", "zh-Hans": "简体", "zh-Hant": "繁體" };
     const WHITELIST_URL = "./assets/WhiteList.txt";
     const PROFILE_SNAPSHOT_VERSION = 2;
-    const SHARE_PAYLOAD_VERSION = 7;
+    const SHARE_PAYLOAD_VERSION = 8;
     const SHARE_CRITICAL_VERSION = 2;
     const SHARE_SEGMENT_DELIMITER = "-";
     const PROFILE_SLOT_COUNT = 4;
@@ -60,6 +60,7 @@
     const STATE_KEYS = [
         "dungeon.simCounts",
         "dungeon.lootCounts",
+        "dungeon.viewMode.v1",
         "dungeon.selectedDungeon",
         "dungeon.selectedTier",
         "dungeon.pricingModel",
@@ -100,6 +101,8 @@
     const SHARE_DUNGEON_INDEX = new Map(SHARE_DUNGEON_KEYS.map((key, index) => [key, index]));
     const SHARE_PRICING_MODES = ["official", "manual", "other"];
     const SHARE_PRICING_MODE_INDEX = new Map(SHARE_PRICING_MODES.map((key, index) => [key, index]));
+    const SHARE_VIEW_MODES = ["quick", "advanced", "tokenShop", "keys", "zoneCompare"];
+    const SHARE_VIEW_MODE_INDEX = new Map(SHARE_VIEW_MODES.map((key, index) => [key, index]));
     const SHARE_CONTEXT_TIER_FACTOR = 128;
     const SHARE_CONTEXT_TIERS = ["T0", "T1", "T2"];
     const SHARE_CONTEXT_KEYS = [];
@@ -109,7 +112,7 @@
         });
     });
     const SHARE_CONTEXT_INDEX = new Map(SHARE_CONTEXT_KEYS.map((key, index) => [key, index]));
-    const SHARE_PAYLOAD_INDEX = Object.freeze({
+    const SHARE_PAYLOAD_INDEX_V7 = Object.freeze({
         v: 0,
         d: 1,
         t: 2,
@@ -128,6 +131,27 @@
         r: 15,
         rc: 16,
         po: 17,
+    });
+    const SHARE_PAYLOAD_INDEX_V8 = Object.freeze({
+        v: 0,
+        vm: 1,
+        d: 2,
+        t: 3,
+        m: 4,
+        g: 5,
+        f: 6,
+        zf: 7,
+        b: 8,
+        c: 9,
+        x: 10,
+        l: 11,
+        z: 12,
+        o: 13,
+        fc: 14,
+        u: 15,
+        r: 16,
+        rc: 17,
+        po: 18,
     });
     const SHARE_FLAG_ADVANCED = 1;
     const SHARE_FLAG_LOOT_OVERRIDE = 2;
@@ -480,6 +504,7 @@
             "ui.profileSlotEmpty": "Profile {slot} (empty)",
             "ui.profileSlotLocked": "Profile {slot} (locked)",
             "ui.profileSlotSaveTarget": "Profile {slot} (empty, click to save shared state)",
+            "ui.profileSlotReplaceTarget": "Profile {slot} (click again to replace with shared state)",
             "ui.profileLoaded": "Profile {slot} loaded",
             "ui.profileLock": "Lock active profile",
             "ui.profileUnlock": "Unlock active profile",
@@ -488,10 +513,12 @@
             "ui.profileLockedNoSave": "Profile {slot} is locked. Unlock it to save changes.",
             "ui.profileLockedViewing": "Profile {slot} is locked. Click profile {slot} again to unlock and edit.",
             "ui.profileLockedReadOnly": "Profile {slot} is locked. Unlock it to edit values.",
-            "ui.sharedStateTempLoaded": "Shared state loaded temporarily. Click an empty profile slot to save it, then edit.",
+            "ui.sharedStateTempLoaded": "Shared state loaded temporarily. Save it to an empty profile slot, or click an unlocked filled slot twice to replace it.",
             "ui.sharedStateTempLoadedPartial": "Share link may be cut off. Loaded recovered critical data only.",
-            "ui.sharedStateTempHint": "Shared link mode: click an empty unlocked profile slot to save this state, then edit.",
-            "ui.sharedStateTempPartialHint": "Share link may be cut off. Loaded recovered critical data only. Click an empty unlocked profile slot to save only the recovered state, then edit.",
+            "ui.sharedStateTempHint": "Shared link mode: click an empty unlocked profile slot to save this state, or click an unlocked filled slot twice to replace it.",
+            "ui.sharedStateTempPartialHint": "Share link may be cut off. Loaded recovered critical data only. Click an empty unlocked profile slot to save it, or click an unlocked filled slot twice to replace it.",
+            "ui.sharedStateTempReplaceConfirm": "Profile {slot} already has saved data. Click it again to replace it with this shared state.",
+            "ui.sharedStateTempReplaceConfirmPartial": "Share link may be cut off. Click profile {slot} again to replace it with the recovered critical data only.",
             "ui.sharedStateSavedToSlot": "Shared state saved to profile {slot}.",
             "aria.heroLanding": "360Dungeon landing",
             "aria.landingHeader": "Landing header",
@@ -829,6 +856,7 @@
             "ui.profileSlotEmpty": "配置 {slot}（空）",
             "ui.profileSlotLocked": "配置 {slot}（已锁定）",
             "ui.profileSlotSaveTarget": "配置 {slot}（空，点击可保存分享状态）",
+            "ui.profileSlotReplaceTarget": "配置 {slot}（再次点击将替换为分享状态）",
             "ui.profileLoaded": "已加载配置 {slot}",
             "ui.profileLock": "锁定当前配置",
             "ui.profileUnlock": "解锁当前配置",
@@ -837,10 +865,12 @@
             "ui.profileLockedNoSave": "配置 {slot} 已锁定，先解锁后才能保存修改。",
             "ui.profileLockedViewing": "配置 {slot} 已锁定。再次点击配置 {slot} 可解锁并编辑。",
             "ui.profileLockedReadOnly": "配置 {slot} 已锁定，解锁后才能编辑数值。",
-            "ui.sharedStateTempLoaded": "分享状态已临时载入。点击空配置位保存后再编辑。",
+            "ui.sharedStateTempLoaded": "分享状态已临时载入。你可以保存到空配置位，或对未锁定的已有配置连点两次进行替换。",
             "ui.sharedStateTempLoadedPartial": "分享链接可能被截断。当前仅载入已恢复的关键数据。",
-            "ui.sharedStateTempHint": "分享链接临时模式：点击空且未锁定的配置位即可保存，然后编辑。",
-            "ui.sharedStateTempPartialHint": "分享链接可能被截断。当前仅载入已恢复的关键数据。点击空且未锁定的配置位即可只保存这部分恢复的数据，然后编辑。",
+            "ui.sharedStateTempHint": "分享链接临时模式：点击空且未锁定的配置位即可保存，或对未锁定的已有配置连点两次进行替换。",
+            "ui.sharedStateTempPartialHint": "分享链接可能被截断。当前仅载入已恢复的关键数据。你可以保存到空且未锁定的配置位，或对未锁定的已有配置连点两次进行替换。",
+            "ui.sharedStateTempReplaceConfirm": "配置 {slot} 已有保存数据。再次点击即可用这份分享状态替换它。",
+            "ui.sharedStateTempReplaceConfirmPartial": "分享链接可能被截断。再次点击配置 {slot} 即可用已恢复的关键数据替换它。",
             "ui.sharedStateSavedToSlot": "分享状态已保存到配置 {slot}。",
             "aria.heroLanding": "360Dungeon 首页",
             "aria.landingHeader": "首页头部",
@@ -1178,6 +1208,7 @@
             "ui.profileSlotEmpty": "配置 {slot}（空）",
             "ui.profileSlotLocked": "配置 {slot}（已鎖定）",
             "ui.profileSlotSaveTarget": "配置 {slot}（空，點擊可儲存分享狀態）",
+            "ui.profileSlotReplaceTarget": "配置 {slot}（再次點擊將替換為分享狀態）",
             "ui.profileLoaded": "已載入配置 {slot}",
             "ui.profileLock": "鎖定目前配置",
             "ui.profileUnlock": "解除鎖定目前配置",
@@ -1186,10 +1217,12 @@
             "ui.profileLockedNoSave": "配置 {slot} 已鎖定，請先解除鎖定再儲存修改。",
             "ui.profileLockedViewing": "配置 {slot} 已鎖定。再次點擊配置 {slot} 可解除鎖定並編輯。",
             "ui.profileLockedReadOnly": "配置 {slot} 已鎖定，請先解除鎖定再編輯數值。",
-            "ui.sharedStateTempLoaded": "分享狀態已暫時載入。點擊空配置位儲存後再編輯。",
+            "ui.sharedStateTempLoaded": "分享狀態已暫時載入。你可以儲存到空配置位，或對未鎖定的已有配置連點兩次進行替換。",
             "ui.sharedStateTempLoadedPartial": "分享連結可能被截斷。目前僅載入已恢復的關鍵資料。",
-            "ui.sharedStateTempHint": "分享連結暫時模式：點擊空且未鎖定的配置位即可儲存，然後編輯。",
-            "ui.sharedStateTempPartialHint": "分享連結可能被截斷。目前僅載入已恢復的關鍵資料。點擊空且未鎖定的配置位即可只儲存這部分恢復的資料，然後編輯。",
+            "ui.sharedStateTempHint": "分享連結暫時模式：點擊空且未鎖定的配置位即可儲存，或對未鎖定的已有配置連點兩次進行替換。",
+            "ui.sharedStateTempPartialHint": "分享連結可能被截斷。目前僅載入已恢復的關鍵資料。你可以儲存到空且未鎖定的配置位，或對未鎖定的已有配置連點兩次進行替換。",
+            "ui.sharedStateTempReplaceConfirm": "配置 {slot} 已有儲存資料。再次點擊即可用這份分享狀態替換它。",
+            "ui.sharedStateTempReplaceConfirmPartial": "分享連結可能被截斷。再次點擊配置 {slot} 即可用已恢復的關鍵資料替換它。",
             "ui.sharedStateSavedToSlot": "分享狀態已儲存到配置 {slot}。",
             "aria.heroLanding": "360Dungeon 首頁",
             "aria.landingHeader": "首頁標頭",
@@ -1590,6 +1623,10 @@
             const normalized = raw.trim().toLowerCase();
             return SHARE_PRICING_MODE_SET.has(normalized) ? normalized : "official";
         }
+        if (key === "dungeon.viewMode.v1") {
+            const normalized = normalizeShareViewMode(raw);
+            return normalized || "";
+        }
         return raw;
     }
 
@@ -1625,11 +1662,13 @@
     function setTempSharedState(rawMap, options = {}) {
         tempSharedMode = !!(rawMap && typeof rawMap === "object");
         tempSharedPartial = tempSharedMode && !!options.partial;
+        clearPendingSharedReplace({ refresh: false });
     }
 
     function clearTempSharedState() {
         tempSharedMode = false;
         tempSharedPartial = false;
+        clearPendingSharedReplace({ refresh: false });
     }
 
     function captureStateMap() {
@@ -1793,6 +1832,9 @@
     let profileStatusClearTimer = 0;
     const PROFILE_STATUS_VISIBLE_MS = 2400;
     const PROFILE_STATUS_FADE_MS = 260;
+    const PROFILE_SHARED_REPLACE_CONFIRM_MS = 5200;
+    let pendingSharedReplaceSlot = 0;
+    let pendingSharedReplaceTimer = 0;
     let shareButtonFeedbackTimer = 0;
     const SHARE_BUTTON_FEEDBACK_MS = 1800;
     let shareFallbackDialogRefs = null;
@@ -1808,6 +1850,32 @@
             window.clearTimeout(profileStatusClearTimer);
             profileStatusClearTimer = 0;
         }
+    }
+
+    function clearPendingSharedReplace({ refresh = true } = {}) {
+        if (pendingSharedReplaceTimer) {
+            window.clearTimeout(pendingSharedReplaceTimer);
+            pendingSharedReplaceTimer = 0;
+        }
+        if (!pendingSharedReplaceSlot) return;
+        pendingSharedReplaceSlot = 0;
+        if (refresh) refreshProfileControls();
+    }
+
+    function armPendingSharedReplace(slotRaw) {
+        const slot = normalizeProfileSlot(slotRaw, 1);
+        if (pendingSharedReplaceTimer) {
+            window.clearTimeout(pendingSharedReplaceTimer);
+            pendingSharedReplaceTimer = 0;
+        }
+        pendingSharedReplaceSlot = slot;
+        pendingSharedReplaceTimer = window.setTimeout(() => {
+            pendingSharedReplaceTimer = 0;
+            if (!pendingSharedReplaceSlot) return;
+            pendingSharedReplaceSlot = 0;
+            if (isTempSharedModeActive()) refreshProfileControls();
+        }, PROFILE_SHARED_REPLACE_CONFIRM_MS);
+        return slot;
     }
 
     function clearShareButtonFeedbackTimer() {
@@ -1992,7 +2060,7 @@
         const statusEl = document.getElementById("profileStatus");
         if (!statusEl) return null;
         const text = tf("ui.profileLoaded", "Profile {slot} loaded", { slot });
-        statusEl.classList.remove("is-temp-shared", "is-temp-shared-warning", "is-locked");
+        statusEl.classList.remove("is-temp-shared", "is-temp-shared-warning", "is-temp-shared-confirm", "is-locked");
         statusEl.textContent = text;
         statusEl.setAttribute("title", text);
         statusEl.setAttribute("aria-label", text);
@@ -2022,14 +2090,18 @@
         const tempMode = isTempSharedModeActive();
         const lockMap = readProfileLocks();
         const activeLocked = !!lockMap[active];
+        const pendingReplaceSlot = tempMode ? normalizeProfileSlot(pendingSharedReplaceSlot || 0, 0) : 0;
         document.querySelectorAll(".profileBtn[data-slot]").forEach((btn) => {
             const slot = normalizeProfileSlot(btn.dataset.slot, 1);
             const hasData = snapshotHasData(readProfileSnapshot(slot));
             const isLocked = !!lockMap[slot];
             const isSaveTarget = tempMode && !hasData && !isLocked;
+            const isReplaceTarget = tempMode && !!pendingReplaceSlot && slot === pendingReplaceSlot && hasData && !isLocked;
             let label = tf("ui.profileSlot", "Profile {slot}", { slot });
             if (isSaveTarget) {
                 label = tf("ui.profileSlotSaveTarget", "Profile {slot} (empty, click to save shared state)", { slot });
+            } else if (isReplaceTarget) {
+                label = tf("ui.profileSlotReplaceTarget", "Profile {slot} (click again to replace with shared state)", { slot });
             } else if (isLocked) {
                 label = tf("ui.profileSlotLocked", "Profile {slot} (locked)", { slot });
             } else if (!hasData) {
@@ -2039,6 +2111,7 @@
             btn.classList.toggle("is-empty", !hasData);
             btn.classList.toggle("is-locked", isLocked);
             btn.classList.toggle("is-save-target", isSaveTarget);
+            btn.classList.toggle("is-replace-target", isReplaceTarget);
             btn.setAttribute("aria-pressed", slot === active ? "true" : "false");
             btn.setAttribute("title", label);
             btn.setAttribute("aria-label", label);
@@ -2050,11 +2123,17 @@
         if (tempMode) {
             clearProfileStatusTimers();
             const partial = isTempSharedPartialState();
-            const hint = partial
-                ? t("ui.sharedStateTempPartialHint", "Share link may be cut off. Loaded recovered critical data only. Click an empty unlocked profile slot to save only the recovered state, then edit.")
-                : t("ui.sharedStateTempHint", "Shared link mode: click an empty unlocked profile slot to save this state, then edit.");
+            const hint = pendingReplaceSlot
+                ? (partial
+                    ? tf("ui.sharedStateTempReplaceConfirmPartial", "Share link may be cut off. Click profile {slot} again to replace it with the recovered critical data only.", { slot: pendingReplaceSlot })
+                    : tf("ui.sharedStateTempReplaceConfirm", "Profile {slot} already has saved data. Click it again to replace it with this shared state.", { slot: pendingReplaceSlot }))
+                : (partial
+                    ? t("ui.sharedStateTempPartialHint", "Share link may be cut off. Loaded recovered critical data only. Click an empty unlocked profile slot to save it, or click an unlocked filled slot twice to replace it.")
+                    : t("ui.sharedStateTempHint", "Shared link mode: click an empty unlocked profile slot to save this state, or click an unlocked filled slot twice to replace it."));
             statusEl.classList.add("is-visible", "is-temp-shared");
             statusEl.classList.toggle("is-temp-shared-warning", partial);
+            statusEl.classList.toggle("is-temp-shared-confirm", !!pendingReplaceSlot);
+            statusEl.classList.remove("is-locked");
             statusEl.textContent = hint;
             statusEl.setAttribute("title", hint);
             statusEl.setAttribute("aria-label", hint);
@@ -2064,14 +2143,14 @@
             clearProfileStatusTimers();
             const text = tf("ui.profileLockedViewing", "Profile {slot} is locked. Click profile {slot} again to unlock and edit.", { slot: active });
             statusEl.classList.add("is-visible", "is-locked");
-            statusEl.classList.remove("is-temp-shared", "is-temp-shared-warning");
+            statusEl.classList.remove("is-temp-shared", "is-temp-shared-warning", "is-temp-shared-confirm");
             statusEl.textContent = text;
             statusEl.setAttribute("title", text);
             statusEl.setAttribute("aria-label", text);
             return;
         }
         if (statusEl.classList.contains("is-temp-shared")) {
-            statusEl.classList.remove("is-temp-shared", "is-temp-shared-warning", "is-visible");
+            statusEl.classList.remove("is-temp-shared", "is-temp-shared-warning", "is-temp-shared-confirm", "is-visible");
             statusEl.textContent = "";
             statusEl.removeAttribute("title");
             statusEl.removeAttribute("aria-label");
@@ -2095,12 +2174,14 @@
 
         if (isTempSharedModeActive()) {
             if (isProfileLocked(target)) {
+                clearPendingSharedReplace({ refresh: false });
                 notify(tf("ui.profileLockedNoSave", "Profile {slot} is locked. Unlock it to save changes.", { slot: target }));
                 refreshProfileControls();
                 return;
             }
 
             if (!targetHasData) {
+                clearPendingSharedReplace({ refresh: false });
                 const saved = writeProfileSnapshot(target, captureStateMap());
                 if (!saved) {
                     refreshProfileControls();
@@ -2114,12 +2195,28 @@
                 return;
             }
 
+            if (pendingSharedReplaceSlot === target) {
+                clearPendingSharedReplace({ refresh: false });
+                const saved = writeProfileSnapshot(target, captureStateMap());
+                if (!saved) {
+                    refreshProfileControls();
+                    return;
+                }
+                notify(tf("ui.sharedStateSavedToSlot", "Shared state saved to profile {slot}.", { slot: target }));
+                clearTempSharedState();
+                setActiveProfileSlot(target);
+                refreshProfileControls();
+                window.location.reload();
+                return;
+            }
+
+            armPendingSharedReplace(target);
             setActiveProfileSlot(current);
             refreshProfileControls();
-            notify(t("ui.sharedStateTempHint", "Shared link mode: click an empty unlocked profile slot to save this state, then edit."));
             return;
         }
 
+        clearPendingSharedReplace({ refresh: false });
         if (target === current) {
             toggleActiveProfileLock(current);
             return;
@@ -2175,6 +2272,17 @@
     function finiteShareNumber(value) {
         const n = Number(value);
         return Number.isFinite(n) ? n : null;
+    }
+
+    function normalizeShareViewMode(rawMode) {
+        const normalized = shareString(rawMode).trim().toLowerCase();
+        if (!normalized) return "";
+        if (normalized === "quick") return "quick";
+        if (normalized === "advanced") return "advanced";
+        if (normalized === "tokenshop" || normalized === "token") return "tokenShop";
+        if (normalized === "keys") return "keys";
+        if (normalized === "zonecompare" || normalized === "zone") return "zoneCompare";
+        return "";
     }
 
     function encodeDungeonCode(rawKey) {
@@ -2234,6 +2342,18 @@
         const code = Number(rawCode);
         return Number.isInteger(code) && code >= 0 && code < SHARE_PRICING_MODES.length
             ? SHARE_PRICING_MODES[code]
+            : "";
+    }
+
+    function encodeViewModeCode(rawMode) {
+        const mode = normalizeShareViewMode(rawMode);
+        return SHARE_VIEW_MODE_INDEX.has(mode) ? SHARE_VIEW_MODE_INDEX.get(mode) : -1;
+    }
+
+    function decodeViewModeCode(rawCode) {
+        const code = Number(rawCode);
+        return Number.isInteger(code) && code >= 0 && code < SHARE_VIEW_MODES.length
+            ? SHARE_VIEW_MODES[code]
             : "";
     }
 
@@ -2623,6 +2743,7 @@
 
     function buildPackedSharePayload(rawMap) {
         const map = sanitizeStateMap(rawMap);
+        const viewMode = encodeViewModeCode(map["dungeon.viewMode.v1"]);
         const flags = buildShareFlags(map);
         const selectedDungeon = encodeDungeonCode(map["dungeon.selectedDungeon"]);
         const selectedTier = encodeTierCode(map["dungeon.selectedTier"]);
@@ -2643,6 +2764,7 @@
         const panelOpen = packPanelOpen(map["dungeon.panelOpen"]);
         return trimTrailingEmpty([
             SHARE_PAYLOAD_VERSION,
+            viewMode > 0 ? viewMode : "",
             selectedDungeon >= 0 ? selectedDungeon : "",
             selectedTier >= 0 ? selectedTier : "",
             pricingMode > 0 ? pricingMode : "",
@@ -2663,26 +2785,28 @@
         ]);
     }
 
-    function unpackPackedSharePayloadCommon(payload) {
+    function unpackPackedSharePayloadCommon(payload, indexMap) {
         const out = {};
-        const selectedDungeon = decodeDungeonCode(payload[SHARE_PAYLOAD_INDEX.d]);
-        const selectedTier = decodeTierCode(payload[SHARE_PAYLOAD_INDEX.t]);
-        const pricingMode = decodePricingModeCode(payload[SHARE_PAYLOAD_INDEX.m]);
-        const flags = Number(payload[SHARE_PAYLOAD_INDEX.g]) || 0;
-        const food = shareString(payload[SHARE_PAYLOAD_INDEX.f]);
-        const zoneFood = shareString(payload[SHARE_PAYLOAD_INDEX.zf]) || food;
-        const zoneBuff = finiteShareNumber(payload[SHARE_PAYLOAD_INDEX.b]);
-        const simCounts = unpackDenseDungeonNumbers(payload[SHARE_PAYLOAD_INDEX.c]);
-        const lootCounts = unpackDenseLootCounts(payload[SHARE_PAYLOAD_INDEX.x]);
-        const lootOverrides = unpackFlatLootOverrideMap(payload[SHARE_PAYLOAD_INDEX.l]);
-        const zoneMinutes = unpackSparseTierMinutes(payload[SHARE_PAYLOAD_INDEX.z]);
-        const zoneOverrides = unpackFlatNumericHridMap(payload[SHARE_PAYLOAD_INDEX.o]);
-        const foodByContext = unpackSparseContextStrings(payload[SHARE_PAYLOAD_INDEX.fc]);
-        const manualInputs = unpackManualInputs(payload[SHARE_PAYLOAD_INDEX.u]);
-        const runInputs = unpackRunInputs(payload[SHARE_PAYLOAD_INDEX.r]);
-        const runInputsByContext = unpackSparseContextRows(payload[SHARE_PAYLOAD_INDEX.rc], zoneMinutes);
-        const panelOpen = unpackPanelOpen(payload[SHARE_PAYLOAD_INDEX.po]);
+        const viewMode = indexMap.vm != null ? decodeViewModeCode(payload[indexMap.vm]) : "";
+        const selectedDungeon = decodeDungeonCode(payload[indexMap.d]);
+        const selectedTier = decodeTierCode(payload[indexMap.t]);
+        const pricingMode = decodePricingModeCode(payload[indexMap.m]);
+        const flags = Number(payload[indexMap.g]) || 0;
+        const food = shareString(payload[indexMap.f]);
+        const zoneFood = shareString(payload[indexMap.zf]) || food;
+        const zoneBuff = finiteShareNumber(payload[indexMap.b]);
+        const simCounts = unpackDenseDungeonNumbers(payload[indexMap.c]);
+        const lootCounts = unpackDenseLootCounts(payload[indexMap.x]);
+        const lootOverrides = unpackFlatLootOverrideMap(payload[indexMap.l]);
+        const zoneMinutes = unpackSparseTierMinutes(payload[indexMap.z]);
+        const zoneOverrides = unpackFlatNumericHridMap(payload[indexMap.o]);
+        const foodByContext = unpackSparseContextStrings(payload[indexMap.fc]);
+        const manualInputs = unpackManualInputs(payload[indexMap.u]);
+        const runInputs = unpackRunInputs(payload[indexMap.r]);
+        const runInputsByContext = unpackSparseContextRows(payload[indexMap.rc], zoneMinutes);
+        const panelOpen = unpackPanelOpen(payload[indexMap.po]);
 
+        if (viewMode && viewMode !== "quick") out["dungeon.viewMode.v1"] = viewMode;
         if (selectedDungeon) out["dungeon.selectedDungeon"] = selectedDungeon;
         if (selectedTier) out["dungeon.selectedTier"] = selectedTier;
         if (pricingMode && pricingMode !== "official") out["dungeon.pricingModel"] = pricingMode;
@@ -2709,17 +2833,22 @@
     }
 
     function unpackPackedSharePayloadV6(payload) {
-        if (!Array.isArray(payload) || Number(payload[SHARE_PAYLOAD_INDEX.v]) !== 6) return null;
-        return unpackPackedSharePayloadCommon(payload);
+        if (!Array.isArray(payload) || Number(payload[SHARE_PAYLOAD_INDEX_V7.v]) !== 6) return null;
+        return unpackPackedSharePayloadCommon(payload, SHARE_PAYLOAD_INDEX_V7);
     }
 
     function unpackPackedSharePayloadV7(payload) {
-        if (!Array.isArray(payload) || Number(payload[SHARE_PAYLOAD_INDEX.v]) !== 7) return null;
-        return unpackPackedSharePayloadCommon(payload);
+        if (!Array.isArray(payload) || Number(payload[SHARE_PAYLOAD_INDEX_V7.v]) !== 7) return null;
+        return unpackPackedSharePayloadCommon(payload, SHARE_PAYLOAD_INDEX_V7);
+    }
+
+    function unpackPackedSharePayloadV8(payload) {
+        if (!Array.isArray(payload) || Number(payload[SHARE_PAYLOAD_INDEX_V8.v]) !== 8) return null;
+        return unpackPackedSharePayloadCommon(payload, SHARE_PAYLOAD_INDEX_V8);
     }
 
     function unpackPackedSharePayload(payload) {
-        return unpackPackedSharePayloadV7(payload) || unpackPackedSharePayloadV6(payload);
+        return unpackPackedSharePayloadV8(payload) || unpackPackedSharePayloadV7(payload) || unpackPackedSharePayloadV6(payload);
     }
 
     function encodeHashSharePayload(payload) {
