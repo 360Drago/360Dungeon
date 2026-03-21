@@ -36,13 +36,13 @@
       id: "quick_calculator",
       title: "Quick Calculator Tutorial",
       guideId: "novice",
-      description: "Noland's beginner path: pick a dungeon, choose a tier, run quick math, and read your results.",
+      description: "Noland walks new players through the fastest way to get a clean dungeon profit estimate.",
       steps: [
         {
           id: "language-theme-check",
           title: "Language & Theme",
           body:
-            "ᚲᚨᚾ ᛁᛟᚢ ᚢᚾᛞᛖᚱᛊᛏᚨᚾᛞ ᛗᛖ ...... ummmm... how about {currentLanguage}? Can you understand and see me, or do you need to look up here? I guess if you can you don't need to adjust Language and Light or Dark mode up at the top there...",
+            "ᚲᚨᚾ ᛁᛟᚢ ᚢᚾᛞᛖᚱᛊᛏᚨᚾᛞ ᛗᛖ ...hmmm, how about {currentLanguage}? Before we start, make sure the language and theme look right to you. You can always change it in the top right!",
           target: "#siteAppearanceControls",
           placement: "center",
           highlightPadding: 8,
@@ -52,7 +52,7 @@
           id: "welcome",
           title: "Noland's Quick Start",
           body:
-            "Welcome to 360Dungeon! My name is Noland. It looks like you're new here. My friends and I are happy to show you around so you can get a feel for the place. I am still learning too, so I will guide you through the easy path: Quick Calculator mode.",
+            "Welcome to 360Dungeon! My name is Noland. It looks like you're new here. My friends and I are happy to show you around so you can get a feel for the place. I am still learning too, so I will guide you through the easy path first!",
           placement: "center",
         },
         {
@@ -68,7 +68,7 @@
           id: "tier-row",
           title: "Pick A Tier",
           body:
-            "Now pick your tier: T0, T1, or T2. Tiers change costs and rewards, so make sure this matches what your group is running so we keep your numbers honest.",
+            "Now pick your tier: T0, T1, or T2. Just like in game, tiers can change your rewards a lot, so make sure this matches what your group is running if you want honest numbers.",
           target: ".tierInner",
           placement: "bottom",
           highlightPadding: 10,
@@ -78,7 +78,7 @@
           id: "quick-inputs",
           title: "Quick Inputs",
           body:
-            "Now add your run details here! I set the combat buff to 20 but if it's currently something else you should let us know. Consumables per day and clear time are super important so make sure you fill them. No pressure, you can always adjust these later.",
+            "Now add your run details here! I set the combat buff to 20 by default, but if yours is different, update it here. Consumables per day and clear time are both super important, so make sure you fill them in. No pressure, you can always adjust these later.",
           target: '[aria-label="Quick inputs"]',
           placement: "right",
           ensure: defaultSelectionEnsure,
@@ -102,7 +102,7 @@
           id: "quick-results",
           title: "Read Results",
           body:
-            "Nice work. Your result board will show you: daily profit, hourly profit, runs per day, and key usage.",
+            "This is your result board. You'll see daily profit, hourly profit, runs per day, and how many keys the setup needs.",
           target: '[aria-label="Quick results"]',
           placement: "left",
           ensure: defaultSelectionEnsure,
@@ -111,7 +111,7 @@
           id: "profiles",
           title: "Profiles",
           body:
-            "A useful tip is to use profiles to save different builds. Your active profile stays highlighted, and you can lock them too if you're worried about clearing any of your information.",
+            "Profiles are useful when you want to save different builds, compare setups, or help a friend. The active one stays highlighted, and you can lock a slot if you want to protect it from accidental clears.",
           target: "#profileSlots",
           placement: "top",
         },
@@ -119,7 +119,7 @@
           id: "profile-share",
           title: "Share Current Profile",
           body:
-            "If you click Share, it copies a magical *incantation* link with all information from your current active profile. That makes it easy to send your exact setup to a friend or save it for later.",
+            "If you click Share, it copies a magical *incantation* link with all information from your current profile. It's the easiest way to send someone your exact setup or save it for later.",
           target: "#shareStateBtn",
           placement: "top",
         },
@@ -135,7 +135,7 @@
           id: "advanced-intro",
           title: "Advanced Mode",
           body:
-            "I specialize in advanced controls. Rather than having assumptions and using market information, I like to have a bit more control.",
+            "If you want more control, this is where things get better. Instead of relying only on default assumptions and market data, Advanced mode lets you tune the details yourself.",
           placement: "center",
           ensure: [{ type: "toggle", selector: "#advMode", checked: true }, { type: "wait", ms: 140 }],
         },
@@ -143,7 +143,7 @@
           id: "advanced-toggle",
           title: "Advanced Toggle",
           body:
-            "Use this toggle to switch between Quick and Advanced workflows.",
+            "Use this toggle to switch between Quick and Advanced mode.",
           target: '.subtitleRow label[for="advMode"]',
           placement: "bottom",
         },
@@ -151,7 +151,7 @@
           id: "pricing-panel",
           title: "Pricing Sources",
           body:
-            "If you happen to be crafting your own keys or prefer to use another *API* to get your prices this is where we can change that!",
+            "If you craft your own keys or prefer another *API* for prices, this is where you change that.",
           target: '.panel.accordion[data-panel="pricing"]',
           placement: "left",
           ensure: defaultSelectionEnsure,
@@ -160,7 +160,7 @@
           id: "run-panel",
           title: "Run Inputs",
           body:
-            "Just like Noland mentioned before, we have to check and make sure this information is correct so always check your player information.",
+            "Like Noland mentioned before, double-check your player info here before you calculate. Small mistakes in clear time or buff can change the result more than people expect.",
           target: "#panelRunBody",
           placement: "left",
           ensure: defaultSelectionEnsure,
@@ -169,7 +169,7 @@
           id: "manual-loot-prices",
           title: "Manual Loot Prices",
           body:
-            "If you have your own values for what your loot is worth or if none happen to be for sale on the market you can control that from here. Careful with this much power you can fall victim to hallucinations of profits that might not be real!",
+            "This is where you can override loot values one by one. It's useful if you have your own values for what your loot is worth or if none happen to be for sale on the market. Just be careful, because bad values can make the profit look better than it really is.",
           target: "#lootOverrideSection",
           placement: "top",
           ensure: [
@@ -182,7 +182,7 @@
           id: "advanced-run",
           title: "Calculate Advanced Result",
           body:
-            "Once again, click here to generate your results. Another tip is you can hit your *ENTER KEY* if you don't want to have to use your wand.",
+            "When your settings look good, hit Calculate here. You can also press Enter if you want to move a little faster.",
           target: () => {
             const host = document.querySelector("#panelRunBody");
             if (!host) return null;
@@ -197,7 +197,7 @@
           id: "advanced-results",
           title: "Advanced Results",
           body:
-            "I hope this helps give you a bit more control and information if you desire. There are still a few more tools that I think you might like if this type of knowledge suits you.",
+            "I hope this gives you a bit more control and a clearer picture of your setup. There are still a few more tools that I think you might like if this kind of detail suits you.",
           target: "#advResultsCard",
           placement: "left",
           ensure: defaultSelectionEnsure,
@@ -208,13 +208,13 @@
       id: "compare",
       title: "Zone Compare Tutorial",
       guideId: "flame",
-      description: "Fenric's fast compare path: set minutes, tune drop filters, calculate, and pick winners quickly.",
+      description: "Fenric's fast path for comparing zones side by side and finding the best runs quickly.",
       steps: [
         {
           id: "compare-intro",
           title: "Zone Compare",
           body:
-            "I do not have time for all that clicking, I prefer to see all my data at once. Here take a look!",
+            "I do not have time for all that clicking! When I want answers fast, I compare everything at once instead of checking one zone at a time. That's what this view is for.",
           placement: "center",
           ensure: [
             ...defaultSelectionEnsure,
@@ -226,7 +226,7 @@
           id: "compare-toggle",
           title: "Enable Compare",
           body:
-            "Start over here. Turn on Zone Compare and we will place every zone side by side.",
+            "Turn on Zone Compare to put the zones side by side. It's the fastest way to spot which runs are worth your time.",
           target: '.subtitleRow label[for="zoneCompareToggle"]',
           placement: "bottom",
           ensure: [
@@ -239,7 +239,7 @@
           id: "compare-panel",
           title: "Compare Panel",
           body:
-            "This is your compare board. We can get quick answers across all zones and tiers.",
+            "This is your compare board. Fill in the times you care about, then let the table show you the best options.",
           target: "#zoneCompareInline",
           placement: "bottom",
           ensure: [
@@ -252,7 +252,7 @@
           id: "compare-min-row",
           title: "Set One Min Row",
           body:
-            "Start with one line like this. Enter your clear time, then repeat the same process for every zone and tier you're interested in or even complete the whole board. A quick tip, you can even use your arrow keys to navigate the entry boxes!",
+            "Start with one row. Enter your clear time for that zone and tier, then keep going across the board for anything else you want to compare. A quick tip, you can even use your arrow keys to navigate the entry boxes!",
           target: () => {
             const preferred = document.querySelector("#zcMin-chimerical_den-T0");
             const input = preferred || document.querySelector("#zoneCompareInline .zcTierInput");
@@ -271,7 +271,7 @@
           id: "compare-low-drop-toggle",
           title: "Remove 1% Drops",
           body:
-            "If you're worried about your LUCK you can use this toggle to Remove 1% drops when you want a stricter baseline or to see what might happen if your unlucky",
+            "Use this toggle to remove 1% drops from the calculation. It's a good way to see a safer baseline without relying on LUCK.",
           target: '#zoneCompareInline label[for="zcLowDrop"]',
           placement: "top",
           ensure: [
@@ -284,7 +284,7 @@
           id: "compare-calculate",
           title: "Calculate Compare",
           body:
-            "When your rows are filled, press Calculate. That's it! Do not forget (Like me) to set your other information and manual prices if you need to.",
+            "Once your rows are filled in, press Calculate. Just make sure your other settings and manual prices are where you want them first.",
           target: "#zcCalc",
           placement: "top",
           ensure: [
@@ -297,7 +297,7 @@
           id: "compare-read-board",
           title: "Read The Winners",
           body:
-            "All that's left is to pick where your party is headed, keep your eyes out for negative expected values sometimes it's not always best to open every type of chest you come across.",
+            "All that's left is to pick where your party is headed. Keep your eyes out for negative expected values, because sometimes it is not best to open every type of chest you come across.",
           target: "#zoneCompareInline .zcGrid",
           placement: "top",
           ensure: [
@@ -310,7 +310,7 @@
           id: "compare-copy-keys",
           title: "Copy Key Needs",
           body:
-            "You can also hover over this and click it to copy the number of keys needed for this run per day and use it in the Keys section. Let me go get Enora to have her show you how that works.",
+            "You can also hover over this and click it to copy that row's daily key needs straight into the Keys section. Let me go get Enora so she can show you how that works.",
           target: () =>
             document.querySelector("#zcTip-chimerical_den-T0") ||
             document.querySelector('#zoneCompareInline .zcInfo[data-copy-planner="1"]') ||
@@ -328,13 +328,13 @@
       id: "keys_tokens",
       title: "Keys & Token Shop Tutorial",
       guideId: "elementalist",
-      description: "Enora's value-workshop: choose context, check token value, verify key economics, and refresh data cleanly.",
+      description: "Enora walks through token value, key costs, and refresh tools for deeper planning.",
       steps: [
         {
           id: "keys-tokens-intro",
           title: "Keys And Token Shop",
           body:
-            "I have two more tools for you to explore that I learned about from all this reading.",
+            "I have two more tools for you to explore that I learned about from all my reading.",
           placement: "center",
           ensure: defaultSelectionEnsure,
         },
@@ -342,7 +342,7 @@
           id: "token-toggle",
           title: "Token Shop Toggle",
           body:
-            "First, enable Token Shop. This opens the token-value panel for the dungeon we are studying.",
+            "First, turn on Token Shop. That opens the token value view for any dungeon you are studying.",
           target: '.subtitleRow label[for="tokenShopToggle"]',
           placement: "bottom",
           ensure: defaultSelectionEnsure,
@@ -351,7 +351,7 @@
           id: "token-select-dungeon",
           title: "Select Dungeon",
           body:
-            "Use these zone cards to switch which dungeon you are studying. The Token Shop detail panel below follows this selection, so pick your zone here first.",
+            "Use these dungeon cards to choose which zone you want to inspect. The token details below will update to match your selection.",
           target: "#tokenShopInline .tsGrid",
           placement: "bottom",
           highlightPadding: 10,
@@ -365,7 +365,7 @@
           id: "token-panel",
           title: "Token Shop Panel",
           body:
-            "After you choose a zone above, this detail panel shows the full Token Shop table with all their market values. Helping get you the best price per token out there!",
+            "After you choose a zone above, this detail panel shows the full Token Shop table and the market value of each item. It helps you spot the best value per token.",
           target: "#tokenShopInline .tsDetailShell",
           placement: "bottom",
           ensure: [
@@ -378,7 +378,7 @@
           id: "token-refresh",
           title: "Refresh Token Prices",
           body:
-            "When you need the newest pricing snapshot, use Refresh prices here before making decisions.",
+            "When you need to check that you are using the newest pricing snapshot, use Refresh prices here before making decisions.",
           target: () => document.querySelector("#tokenShopRefreshBtn") || document.querySelector("#tokenShopInline"),
           placement: "top",
           ensure: [
@@ -391,7 +391,7 @@
           id: "keys-toggle",
           title: "Keys Toggle",
           body:
-            "Next, enable Keys. This compares crafting costs and market prices if you decide you want to craft for a bit.",
+            "Now turn on Keys. This section helps you compare crafting costs against market prices.",
           target: '.subtitleRow label[for="keysToggle"]',
           placement: "bottom",
           ensure: defaultSelectionEnsure,
@@ -400,7 +400,7 @@
           id: "keys-headers",
           title: "Keys Overview",
           body:
-            "This overview lets you compare every dungeon's key summary at a glance. Use these cards to swap zones, then look below when you want the full crafting planner.",
+            "This overview gives you a quick read on every dungeon's key situation. Pick a zone here, then use the planner below if you want to go deeper.",
           target: "#keysInline .keysGrid",
           placement: "top",
           highlightPadding: 10,
@@ -414,7 +414,7 @@
           id: "keys-planner",
           title: "Key Cost Planner",
           body:
-            "If you want to plan out your crafting you can expand this menu too. Just set how many keys you want for your selected dungeon, and check all your toggles, you can also manualy put in prices if you want too.",
+            "Open the planner when you want to map out crafting in detail. Set how many keys you need, check your options, and override prices if you're using your own numbers.",
           target: "#keysPlannerPanel",
           placement: "bottom",
           highlightPadding: 10,
@@ -429,7 +429,7 @@
           id: "keys-entry-toggle",
           title: "Entry Keys",
           body:
-            "You can even swap to view entry keys as well.",
+            "You can switch this view to entry keys too, so you're not limited to chest keys!",
           target: () => document.querySelector("#keysTypeBtn") || document.querySelector("#keysInline"),
           placement: "top",
           ensure: [
@@ -443,7 +443,7 @@
           id: "keys-refresh",
           title: "Refresh Key Prices",
           body:
-            "As always, make sure to check the refresh timer or go ahead and press it again for good measure!",
+            "And just like the other tools, you can refresh prices here whenever you want the latest snapshot.",
           target: () => document.querySelector("#keysRefreshBtn") || document.querySelector("#keysInline"),
           placement: "top",
           ensure: [

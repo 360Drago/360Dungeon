@@ -474,6 +474,36 @@
   };
 
   function applyTutorialOverrides() {
+    const hansQuick = I18N["zh-Hans"]?.chapter?.quick_calculator;
+    if (hansQuick) {
+      hansQuick.description = "Noland 带新玩家走一遍最快拿到清晰地牢收益估算的流程。";
+      hansQuick.step.profiles = {
+        title: "配置档",
+        body: "当你想保存不同配置、比较方案，或帮朋友查看面板时，配置档就很有用。当前启用的配置会保持高亮，如果你想防止误清空，也可以把它锁住。",
+      };
+    }
+
+    const hansAdvanced = I18N["zh-Hans"]?.chapter?.advanced;
+    if (hansAdvanced) {
+      hansAdvanced.description = "更深入的高级控制与计算调校。";
+      hansAdvanced.step["advanced-intro"] = {
+        title: "高级模式",
+        body: "如果你想要更多控制，这里会更适合你。高级模式不会只依赖默认假设和市场数据，而是让你自己调整更多细节。",
+      };
+      hansAdvanced.step["run-panel"] = {
+        title: "跑图输入",
+        body: "就像 Noland 之前说的，在计算前先确认这里的玩家信息。通关时间或增益只要有一点点偏差，结果都可能比你想的变动更大。",
+      };
+      hansAdvanced.step["manual-loot-prices"] = {
+        title: "手动掉落价格",
+        body: "这里可以逐项覆盖掉落价值。如果你有自己的估价，或者市场上暂时没人挂单，就在这里手动调整。但要小心，错误的价格会让利润看起来比真实情况更好。",
+      };
+      hansAdvanced.step["advanced-results"] = {
+        title: "高级结果",
+        body: "希望这能让你对自己的配置有更强的掌控，也看得更清楚。如果你喜欢这种细节，后面还有几样工具你应该也会喜欢。",
+      };
+    }
+
     const hans = I18N["zh-Hans"]?.chapter?.keys_tokens?.step;
     if (hans) {
       hans["token-select-dungeon"] = {
@@ -482,7 +512,7 @@
       };
       hans["token-panel"] = {
         title: "\u4ee3\u5e01\u5546\u5e97\u9762\u677f",
-        body: "\u5728\u4e0a\u65b9\u9009\u597d\u5206\u533a\u540e\uff0c\u4e0b\u65b9\u7684\u8be6\u60c5\u9762\u677f\u4f1a\u663e\u793a\u5b8c\u6574\u7684 Token Shop \u8868\u683c\u548c\u5b83\u4eec\u5bf9\u5e94\u7684\u5e02\u573a\u4ef7\u503c\uff0c\u5e2e\u4f60\u627e\u5230\u6bcf\u679a token \u6700\u5212\u7b97\u7684\u9009\u9879\uff01",
+        body: "在上方选好分区后，下方的详情面板会显示完整的 Token Shop 表格和每个项目对应的市场价值，帮你找出每枚 token 最划算的选择。",
       };
       hans["keys-headers"] = {
         title: "\u94a5\u5319\u603b\u89c8",
@@ -502,7 +532,7 @@
     if (hansCompare) {
       hansCompare["compare-copy-keys"] = {
         title: "\u590d\u5236\u94a5\u5319\u9700\u6c42",
-        body: "\u4f60\u4e5f\u53ef\u4ee5\u628a\u9f20\u6807\u79fb\u5230\u8fd9\u91cc\u518d\u70b9\u51fb\u5b83\uff0c\u628a\u8fd9\u6b21\u6bcf\u65e5\u8fd0\u884c\u9700\u8981\u7684\u94a5\u5319\u6570\u91cf\u590d\u5236\u5230 Keys \u533a\u57df\u4f7f\u7528\u3002\u6211\u8fd9\u5c31\u53bb\u627e Enora\uff0c\u8ba9\u5979\u7ed9\u4f60\u6f14\u793a\u8fd9\u662f\u600e\u4e48\u8fd0\u4f5c\u7684\u3002",
+        body: "你也可以把鼠标移到这里再点一下，把这一行每天需要的钥匙数量直接复制到 Keys 区域。我要去找 Enora，让她接着告诉你这是怎么用的。",
       };
     }
     const hansCompletion = I18N["zh-Hans"]?.completion;
@@ -512,6 +542,36 @@
     }
 
     const hant = I18N["zh-Hant"]?.chapter?.keys_tokens?.step;
+    const hantQuick = I18N["zh-Hant"]?.chapter?.quick_calculator;
+    if (hantQuick) {
+      hantQuick.description = "Noland 帶新玩家走一遍最快拿到清楚地牢收益估算的流程。";
+      hantQuick.step.profiles = {
+        title: "配置檔",
+        body: "當你想保存不同配置、比較方案，或幫朋友查看面板時，配置檔就很有用。目前啟用的配置會保持高亮，如果你想防止誤清空，也可以把它鎖住。",
+      };
+    }
+
+    const hantAdvanced = I18N["zh-Hant"]?.chapter?.advanced;
+    if (hantAdvanced) {
+      hantAdvanced.description = "更深入的進階控制與計算調校。";
+      hantAdvanced.step["advanced-intro"] = {
+        title: "進階模式",
+        body: "如果你想要更多控制，這裡會更適合你。進階模式不會只依賴預設假設和市場資料，而是讓你自己調整更多細節。",
+      };
+      hantAdvanced.step["run-panel"] = {
+        title: "跑圖輸入",
+        body: "就像 Noland 之前說的，在計算前先確認這裡的玩家資訊。通關時間或增益只要有一點點偏差，結果都可能比你想的變動更大。",
+      };
+      hantAdvanced.step["manual-loot-prices"] = {
+        title: "手動掉落價格",
+        body: "這裡可以逐項覆蓋掉落價值。如果你有自己的估價，或市場上暫時沒有人掛單，就在這裡手動調整。但要小心，錯誤的價格會讓利潤看起來比真實情況更好。",
+      };
+      hantAdvanced.step["advanced-results"] = {
+        title: "進階結果",
+        body: "希望這能讓你對自己的配置有更強的掌控，也看得更清楚。如果你喜歡這種細節，後面還有幾樣工具你應該也會喜歡。",
+      };
+    }
+
     if (hant) {
       hant["token-select-dungeon"] = {
         title: "\u9078\u64c7\u5730\u4e0b\u57ce",
@@ -519,7 +579,7 @@
       };
       hant["token-panel"] = {
         title: "\u4ee3\u5e63\u5546\u5e97\u9762\u677f",
-        body: "\u5728\u4e0a\u65b9\u9078\u597d\u5206\u5340\u5f8c\uff0c\u4e0b\u65b9\u7684\u8a73\u7d30\u9762\u677f\u6703\u986f\u793a\u5b8c\u6574\u7684 Token Shop \u8868\u683c\u8207\u5b83\u5011\u5c0d\u61c9\u7684\u5e02\u5834\u50f9\u503c\uff0c\u5e6b\u4f60\u627e\u51fa\u6bcf\u679a token \u6700\u5212\u7b97\u7684\u9078\u9805\uff01",
+        body: "在上方選好分區後，下方的詳情面板會顯示完整的 Token Shop 表格和每個項目對應的市場價值，幫你找出每枚 token 最划算的選擇。",
       };
       hant["keys-headers"] = {
         title: "\u9470\u5319\u7e3d\u89bd",
@@ -539,7 +599,7 @@
     if (hantCompare) {
       hantCompare["compare-copy-keys"] = {
         title: "\u8907\u88fd\u9470\u5319\u9700\u6c42",
-        body: "\u4f60\u4e5f\u53ef\u4ee5\u5c07\u6ed1\u9f20\u79fb\u5230\u9019\u88e1\u518d\u9ede\u64ca\u5b83\uff0c\u628a\u9019\u6b21\u6bcf\u65e5\u904b\u884c\u9700\u8981\u7684\u9470\u5319\u6578\u91cf\u8907\u88fd\u5230 Keys \u5340\u57df\u4f7f\u7528\u3002\u6211\u9019\u5c31\u53bb\u627e Enora\uff0c\u8b93\u5979\u7d66\u4f60\u793a\u7bc4\u9019\u662f\u600e\u9ebc\u904b\u4f5c\u7684\u3002",
+        body: "你也可以把滑鼠移到這裡再點一下，把這一列每天需要的鑰匙數量直接複製到 Keys 區域。我要去找 Enora，讓她接著告訴你這是怎麼用的。",
       };
     }
     const hantCompletion = I18N["zh-Hant"]?.completion;
