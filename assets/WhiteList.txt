@@ -1,0 +1,39 @@
+# 360Dungeon i18n White List
+# Terms in this file stay untranslated across languages.
+#
+# Rules:
+# - One term per line
+# - Case-sensitive
+# - Empty lines and lines starting with "#" are ignored
+# - Section headers like [DUNGEONS] are for organization only
+
+[BRAND]
+360Dungeon
+360Drago
+YAPMAXXING
+
+[TUTORIAL_IDENTITIES]
+Noland
+Icera
+Fenric
+Enora
+ᚲᚨᚾ ᛁᛟᚢ ᚢᚾᛞᛖᚱᛊᛏᚨᚾᛞ ᛗᛖ
+
+[SERVICES]
+Mooket
+
+[TECHNICAL]
+API
+EV
+HRID
+
+[TIER_CODES]
+T0
+T1
+T2
+
+[DUNGEONS]
+Chimerical Den
+Sinister Circus
+Enchanted Fortress
+Pirate Cove
