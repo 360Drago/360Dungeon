@@ -39,7 +39,7 @@
       },
       ack: {
         body:
-          "360Dungeon 献给 MilkMaxxing、yapmaxxing 和所有 yappers。\n\n我希望这个项目和这些工具能让你的 MilkyWayIdle 体验更好。也感谢我的公会成员，以及在测试阶段提供反馈和改进建议的社区朋友。特别鸣谢 Edible Tools 和 Physon's Calculator。\n\n如果你有任何意见或建议，欢迎在游戏里给我留言。再次感谢！\n\n-360Drago'",
+          "360Dungeon 献给 MilkMaxxing、yapmaxxing 和所有 yappers。\n\n我希望这个项目和它的这些工具，能让你的 MilkyWayIdle 体验变得更好。我也想感谢我的公会成员，以及社区里帮助进行 Beta 测试并提出改进建议的朋友。特别鸣谢 Edible Tools、Physon's Calculator，以及这个了不起的社区所创作的其他扩展，它们也给了这个项目很多灵感。\n\n如果你有任何评论或建议，欢迎在游戏里或 Discord 上联系我。再次感谢！\n\n-360Drago",
       },
       chapter: {
         quick_calculator: {
@@ -273,7 +273,7 @@
       },
       ack: {
         body:
-          "360Dungeon 獻給 MilkMaxxing、yapmaxxing 與所有 yappers。\n\n我希望這個專案和這些工具能讓你的 MilkyWayIdle 體驗更好。也感謝我的公會成員，以及在測試期間提供回饋與改進建議的社群朋友。特別鳴謝 Edible Tools 與 Physon's Calculator。\n\n如果你有任何意見或建議，歡迎在遊戲內私訊我。再次感謝！\n\n-360Drago'",
+          "360Dungeon 獻給 MilkMaxxing、yapmaxxing 與所有 yappers。\n\n我希望這個專案和它的這些工具，能讓你的 MilkyWayIdle 體驗變得更好。我也想感謝我的公會成員，以及社群裡幫忙進行 Beta 測試並提供改進建議的朋友。特別鳴謝 Edible Tools、Physon's Calculator，以及這個了不起的社群所創作的其他擴充，它們也給了這個專案很多靈感。\n\n如果你有任何意見或建議，歡迎在遊戲內或 Discord 上聯絡我。再次感謝！\n\n-360Drago",
       },
       chapter: {
         quick_calculator: {

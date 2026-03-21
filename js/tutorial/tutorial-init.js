@@ -17,9 +17,9 @@
       "ack.body",
       [
         "360Dungeon is dedicated to MilkMaxxing, yapmaxxing, and yappers.",
-        "I hope this project and its tools help make your MilkyWayIdle experience even better. I would like to thank my guild members as well as those in the community who helped with the beta test and offered improvements. Special mentions to Edible Tools and Physon's Calculator as well.",
-        "If you have any comments or suggestions, feel free to message me in game. Thanks again!",
-        "-360Drago'",
+        "I hope this project and its tools help make your MilkyWayIdle experience even better. I would like to thank my guild members as well as those in the community who helped with the beta test and offered improvements. Special mentions to Edible Tools and Physon's Calculator and all the other extensions this amazing community have created that inspired this project.",
+        "If you have any comments or suggestions, feel free to message me in game or on discord. Thanks again!",
+        "-360Drago",
       ].join("\n\n")
     );
   }
