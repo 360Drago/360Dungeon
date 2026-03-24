@@ -41,6 +41,7 @@
     return {
       version: VERSION,
       skipAll: false,
+      launcherAcknowledged: false,
       activeChapter: "",
       activeStep: 0,
       chapters,
@@ -69,6 +70,16 @@
     }
   }
 
+  function emitChange(state) {
+    try {
+      document.dispatchEvent(
+        new CustomEvent("tutorial:storage-changed", {
+          detail: { state: clone(normalizeState(state)) },
+        })
+      );
+    } catch (_) {}
+  }
+
   function normalizeChapter(raw) {
     const base = chapterDefaults();
     const src = raw && typeof raw === "object" ? raw : {};
@@ -88,6 +99,7 @@
     const ids = chapterIds();
     const out = buildDefaultState();
     out.skipAll = !!raw.skipAll;
+    out.launcherAcknowledged = !!raw.launcherAcknowledged;
     out.activeChapter = ids.includes(raw.activeChapter) ? raw.activeChapter : "";
     out.activeStep = Number.isFinite(Number(raw.activeStep)) ? Math.max(0, Math.floor(Number(raw.activeStep))) : 0;
     out.updatedAt = Number.isFinite(Number(raw.updatedAt)) ? Math.max(0, Math.floor(Number(raw.updatedAt))) : 0;
@@ -110,7 +122,9 @@
   function writeState(nextState) {
     const normalized = normalizeState(nextState);
     normalized.updatedAt = Date.now();
-    return safeWriteRaw(JSON.stringify(normalized));
+    const ok = safeWriteRaw(JSON.stringify(normalized));
+    if (ok) emitChange(normalized);
+    return ok;
   }
 
   function mutate(mutator) {
@@ -217,6 +231,13 @@
     });
   }
 
+  function setLauncherAcknowledged(value = true) {
+    return mutate((st) => {
+      st.launcherAcknowledged = !!value;
+      return st;
+    });
+  }
+
   function reset() {
     const next = buildDefaultState();
     writeState(next);
@@ -250,5 +271,6 @@
     setActive,
     clearActive,
     setSkipAll,
+    setLauncherAcknowledged,
   };
 })();

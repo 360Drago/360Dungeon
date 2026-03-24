@@ -692,6 +692,32 @@
     });
   }
 
+  function startFromLauncher() {
+    const store = storage();
+    if (!store) return;
+    const st = store.read();
+    const activeChapterId = st?.activeChapter || "";
+    const activeStep = Math.max(0, Number(st?.activeStep) || 0);
+    const activeState = activeChapterId ? st?.chapters?.[activeChapterId] : null;
+    if (
+      activeChapterId &&
+      !st?.skipAll &&
+      activeState &&
+      !activeState.completed &&
+      !activeState.skipped
+    ) {
+      startChapter(activeChapterId, { force: true, replay: false, startStep: activeStep });
+      return;
+    }
+
+    if (!st?.skipAll && store.shouldAutoStartChapter("quick_calculator")) {
+      startChapter("quick_calculator");
+      return;
+    }
+
+    openPicker();
+  }
+
   function bindKeyboard() {
     document.addEventListener("keydown", (evt) => {
       const uiApi = ui();
@@ -734,27 +760,6 @@
     });
   }
 
-  function maybeAutoStartQuick() {
-    const store = storage();
-    if (!store || !store.shouldAutoStartChapter("quick_calculator")) return;
-    window.setTimeout(() => {
-      if (state.active || state.pickerOpen) return;
-      startChapter("quick_calculator");
-    }, 850);
-  }
-
-  function maybeResumeInProgress() {
-    const store = storage();
-    if (!store) return false;
-    const st = store.read();
-    const chapterId = st?.activeChapter || "";
-    if (!chapterId) return false;
-    if (st?.skipAll) return false;
-    const cs = st?.chapters?.[chapterId];
-    if (!cs || cs.completed || cs.skipped) return false;
-    return startChapter(chapterId, { force: true, startStep: st.activeStep || 0 });
-  }
-
   function handleLanguageChanged() {
     if (state.active) {
       void renderCurrentStep();
@@ -773,13 +778,13 @@
     if (!storage() || !chaptersApi() || !guides() || !ui()) return false;
     bindKeyboard();
     document.addEventListener("site:lang-changed", handleLanguageChanged);
-    if (!maybeResumeInProgress()) maybeAutoStartQuick();
     return true;
   }
 
   window.DungeonTutorial = {
     init,
     startChapter,
+    startFromLauncher,
     openPicker,
     skipAll,
     resetProgress: resetProgressAndStartQuick,

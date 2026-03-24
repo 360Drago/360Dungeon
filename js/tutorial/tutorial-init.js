@@ -12,6 +12,43 @@
     } catch (_) {}
   }
 
+  function tutorialNeedsAttention() {
+    const store = window.DungeonTutorialStorage;
+    if (!store) return false;
+    try {
+      const state = store.read?.();
+      if (state?.skipAll) return false;
+      if (state?.launcherAcknowledged) return false;
+      return !store.allDone?.();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function handleGuideButtonClick() {
+    const store = window.DungeonTutorialStorage;
+    const tutorialApi = window.DungeonTutorial;
+    if (!tutorialApi) return;
+    const state = store?.read?.() || null;
+    const needsAttention =
+      !!store &&
+      !state?.skipAll &&
+      !state?.launcherAcknowledged &&
+      !store.allDone?.();
+    if (needsAttention) {
+      store.setLauncherAcknowledged?.(true);
+      tutorialApi.startFromLauncher?.();
+      return;
+    }
+    tutorialApi.openPicker?.();
+  }
+
+  function applyGuideButtonState() {
+    const openBtn = document.getElementById("tutorialOpenBtn");
+    if (!openBtn) return;
+    openBtn.classList.toggle("tutorialOpenBtnPending", tutorialNeedsAttention());
+  }
+
   function getAckMessage() {
     return tt(
       "ack.body",
@@ -50,6 +87,7 @@
       const bodyEl = panel.querySelector(".tutorialAckBody");
       if (bodyEl) bodyEl.textContent = getAckMessage();
     }
+    applyGuideButtonState();
     notifyLauncherLayoutChanged();
   }
 
@@ -194,10 +232,11 @@
       <span class="ctrlText">${tt("ui.guideButton", "Guide")}</span>
     `;
       btn.addEventListener("click", () => {
-        window.DungeonTutorial?.openPicker?.();
+        handleGuideButtonClick();
       });
     }
     if (btn.parentElement !== row) row.appendChild(btn);
+    applyGuideButtonState();
     ensureAcknowledgements(row);
     return true;
   }
@@ -216,7 +255,10 @@
     ensureLauncherButton();
     applyLauncherI18n();
     document.addEventListener("site:lang-changed", applyLauncherI18n);
+    document.addEventListener("tutorial:storage-changed", applyGuideButtonState);
+    window.addEventListener("storage", applyGuideButtonState);
     window.DungeonTutorial?.init?.();
+    applyGuideButtonState();
   }
 
   if (document.readyState === "loading") {
