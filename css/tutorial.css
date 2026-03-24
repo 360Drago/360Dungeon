@@ -22,6 +22,9 @@
 }
 
 .tutorialOpenBtn.tutorialOpenBtnPending {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border-color: color-mix(in srgb, #e9c35b 72%, var(--border));
   background:
     radial-gradient(circle at 18% 18%, rgba(255, 231, 150, 0.28), transparent 58%),
@@ -30,6 +33,30 @@
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, #f5d784 34%, transparent),
     0 0 22px rgba(224, 170, 47, 0.18);
+}
+
+.tutorialOpenBtn.tutorialOpenBtnPending .ctrlIcon,
+.tutorialOpenBtn.tutorialOpenBtnPending .ctrlText {
+  position: relative;
+  z-index: 1;
+}
+
+.tutorialOpenBtn.tutorialOpenBtnPending::after {
+  content: "";
+  position: absolute;
+  inset: -1px auto -1px -42%;
+  width: 36%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 249, 214, 0.06) 18%,
+    rgba(255, 249, 214, 0.42) 50%,
+    rgba(255, 249, 214, 0.06) 82%,
+    transparent 100%
+  );
+  transform: skewX(-18deg) translateX(0);
 }
 
 .tutorialOpenBtn.tutorialOpenBtnPending:hover {
@@ -56,6 +83,44 @@ html[data-theme="light"] .tutorialOpenBtn.tutorialOpenBtnPending:hover {
     radial-gradient(circle at 18% 18%, rgba(255, 248, 214, 0.98), transparent 52%),
     linear-gradient(180deg, #fff5cc 0%, #eabb47 100%);
   color: #6a4300;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tutorialOpenBtn.tutorialOpenBtnPending::after {
+    animation: tutorialGuidePendingSweep 5.8s ease-in-out infinite;
+  }
+
+  .tutorialOpenBtn.tutorialOpenBtnPending .ctrlIcon {
+    animation: tutorialGuidePendingDrift 3.8s ease-in-out infinite;
+  }
+}
+
+@keyframes tutorialGuidePendingSweep {
+  0%,
+  68% {
+    opacity: 0;
+    transform: skewX(-18deg) translateX(0);
+  }
+
+  78% {
+    opacity: 0.72;
+  }
+
+  100% {
+    opacity: 0;
+    transform: skewX(-18deg) translateX(440%);
+  }
+}
+
+@keyframes tutorialGuidePendingDrift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(1.5px);
+  }
 }
 
 .tutorialAckBtn {
