@@ -684,10 +684,30 @@
         text-transform: uppercase;
       }
       #keysInline .keysCalcCostValue {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
         font-size: 28px;
         font-weight: 900;
         line-height: 1;
         font-variant-numeric: tabular-nums;
+      }
+      #keysInline .keysCalcEstimateBadge {
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1;
+        color: color-mix(in srgb, currentColor 58%, rgba(255, 255, 255, 0.58));
+        opacity: 0.86;
+        transform: translateY(-1px);
+      }
+      #keysInline .keysCalcEstimateBadge.tipHost[data-tip]:not([data-tip=""])::after {
+        width: max-content;
+        max-width: min(220px, calc(100vw - 48px));
+        white-space: nowrap;
       }
       #keysInline .keysCalcCostLine {
         width: 100%;
@@ -933,10 +953,31 @@
         line-height: 1.2;
       }
       #keysInline .keysFragNeed {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        padding-bottom: 4px;
         font-size: 14px;
         font-weight: 900;
         color: color-mix(in srgb, var(--accent) 60%, var(--text));
         font-variant-numeric: tabular-nums;
+      }
+      #keysInline .keysFragNeed::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 3px;
+        border-radius: 999px;
+        background:
+          linear-gradient(90deg,
+            transparent 0%,
+            color-mix(in srgb, var(--accent) 30%, transparent) 14%,
+            color-mix(in srgb, var(--accent) 92%, white) 50%,
+            color-mix(in srgb, var(--accent) 30%, transparent) 86%,
+            transparent 100%);
+        box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 22%, transparent);
       }
       #keysInline .keysFragEach {
         font-size: 12px;
@@ -1904,15 +1945,26 @@
     }
     syncCalculatorButtonState(panel);
     const estimate = buildChestTargetEstimate(recipe, market, ensureCalcState());
+    const artisanBudgetEstimate = estimate?.mode === "bank" && !!ensureCalcState().artisanEnabled;
     if (totalCostLabelEl) {
       totalCostLabelEl.textContent = estimate?.mode === "bank"
-        ? tf("ui.keysAffordableType", "Affordable {type}", { type: keyTypeLabel(recipe.keyType) })
+        ? t("ui.keysTotalForBudget", "Total Keys for your budget")
         : t("ui.keysTotalCost", "Total cost");
     }
     if (totalCostEl) {
-      totalCostEl.textContent = estimate
-        ? (estimate.mode === "bank" ? fmtCount(estimate.producedKeys) : fmtCoins(estimate.totalCost))
-        : "-";
+      if (!estimate) {
+        totalCostEl.textContent = "-";
+      } else if (artisanBudgetEstimate) {
+        totalCostEl.innerHTML = `
+          <span
+            class="keysCalcEstimateBadge tipHost"
+            data-tip="${escAttr(t("ui.keysEstimateArtisanHelp", "Estimated when artisan is enabled"))}"
+          >${escHtml(t("ui.keysEstimatePrefix", "~"))}</span>
+          <span>${escHtml(fmtCount(estimate.producedKeys))}</span>
+        `;
+      } else {
+        totalCostEl.textContent = estimate.mode === "bank" ? fmtCount(estimate.producedKeys) : fmtCoins(estimate.totalCost);
+      }
     }
     if (!results) return;
     results.innerHTML = calculatorResultsHtml(recipe, estimate);
