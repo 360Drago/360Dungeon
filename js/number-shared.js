@@ -2,7 +2,7 @@
 (() => {
   "use strict";
   // Ownership: shared number parse/normalize/compact-format helpers for UI inputs and summaries.
-  // Invariant: preserve existing compact-number semantics ("k","m") and output text formatting.
+  // Invariant: preserve existing compact-number semantics ("k","m","b") and output text formatting.
 
   function parseCompactNumber(input) {
     if (input == null) return null;
@@ -15,14 +15,14 @@
       .replace(/,/g, "")
       .toLowerCase();
 
-    const match = cleaned.match(/^(\d+(\.\d+)?)([km])?$/);
+    const match = cleaned.match(/^(\d+(\.\d+)?)([kmb])?$/);
     if (!match) return null;
 
     const base = Number(match[1]);
     if (!Number.isFinite(base)) return null;
 
     const suffix = match[3] || "";
-    const mult = suffix === "k" ? 1_000 : suffix === "m" ? 1_000_000 : 1;
+    const mult = suffix === "k" ? 1_000 : suffix === "m" ? 1_000_000 : suffix === "b" ? 1_000_000_000 : 1;
     return base * mult;
   }
 
@@ -37,7 +37,7 @@
       .replace(/,/g, "")
       .toLowerCase();
 
-    const match = cleaned.match(/^(\d+(\.\d+)?)([km])?$/);
+    const match = cleaned.match(/^(\d+(\.\d+)?)([kmb])?$/);
     if (!match) return raw;
 
     const base = Number(match[1]);
@@ -77,9 +77,11 @@
 
   function formatCoinsShort(v, opts = {}) {
     const invalidText = (typeof opts.invalidText === "string") ? opts.invalidText : "-";
+    const billionSuffix = (typeof opts.billionSuffix === "string" && opts.billionSuffix) ? opts.billionSuffix : "B";
     const millionSuffix = (typeof opts.millionSuffix === "string" && opts.millionSuffix) ? opts.millionSuffix : "M";
     const thousandSuffix = (typeof opts.thousandSuffix === "string" && opts.thousandSuffix) ? opts.thousandSuffix : "k";
     if (!Number.isFinite(v)) return invalidText;
+    if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(2).replace(/\.00$/, "") + billionSuffix;
     if (v >= 1_000_000) return (v / 1_000_000).toFixed(2).replace(/\.00$/, "") + millionSuffix;
     if (v >= 1_000) return (v / 1_000).toFixed(2).replace(/\.00$/, "") + thousandSuffix;
     return Math.floor(v).toLocaleString();

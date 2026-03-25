@@ -22,6 +22,7 @@
   const CALC_EXPANDED_KEY = "dungeon.keys.plannerExpanded.v1";
   const CALC_OVERRIDE_KEY = "dungeon.keys.fragmentOverrides.v1";
   const CALC_IMPORT_KEY = "dungeon.keys.importPayload.v1";
+  const CALC_BANK_MAP_KEY = "dungeon.keys.bankByRecipe.v1";
   const BUY_MODE_INSTANT = "instant";
   const BUY_MODE_ORDER = "order";
   const KEY_TYPE_CHEST = "chest";
@@ -215,6 +216,18 @@
     return out;
   }
 
+  function normalizeRawStringMap(raw) {
+    if (!isRecordObject(raw)) return {};
+    const out = {};
+    Object.entries(raw).forEach(([key, value]) => {
+      const mapKey = String(key || "").trim();
+      const rawValue = String(value == null ? "" : value).trim();
+      if (!mapKey || !rawValue) return;
+      out[mapKey] = rawValue;
+    });
+    return out;
+  }
+
   function normalizePlannerImport(raw) {
     if (!isRecordObject(raw)) return null;
     const uiKey = String(raw.uiKey || "").trim();
@@ -246,6 +259,7 @@
     let overridesMap = {};
     let plannerImport = null;
     let targetRawMap = {};
+    let bankRawMap = {};
     try {
       const parsed = JSON.parse(String(storageGetItem(CALC_OVERRIDE_KEY) || "{}"));
       if (parsed && typeof parsed === "object") overridesMap = parsed;
@@ -255,6 +269,9 @@
     } catch (_) { }
     try {
       targetRawMap = normalizeTargetMap(JSON.parse(String(storageGetItem(CALC_TARGET_MAP_KEY) || "{}")));
+    } catch (_) { }
+    try {
+      bankRawMap = normalizeRawStringMap(JSON.parse(String(storageGetItem(CALC_BANK_MAP_KEY) || "{}")));
     } catch (_) { }
     const legacyTarget = parsePositiveInteger(targetRaw);
     const selectedDungeonKey = getSelectedDungeonKey();
@@ -273,6 +290,7 @@
       expanded: String(storageGetItem(CALC_EXPANDED_KEY) || "0") !== "0",
       overridesMap,
       plannerImport,
+      bankRawMap,
     };
   }
 
@@ -288,6 +306,7 @@
       storageSetItem(CALC_GUZZLING_LEVEL_KEY, String(calcState.guzzlingPouchLevel));
       storageSetItem(CALC_EXPANDED_KEY, calcState.expanded ? "1" : "0");
       storageSetItem(CALC_OVERRIDE_KEY, JSON.stringify(calcState.overridesMap || {}));
+      storageSetItem(CALC_BANK_MAP_KEY, JSON.stringify(calcState.bankRawMap || {}));
       if (calcState.plannerImport) storageSetItem(CALC_IMPORT_KEY, JSON.stringify(calcState.plannerImport));
       else storageRemoveItem(CALC_IMPORT_KEY);
     } catch (_) { }
@@ -311,6 +330,7 @@
     calcState.expanded = calcState.expanded !== false;
     calcState.targetRaw = String(calcState.targetRaw == null ? "" : calcState.targetRaw);
     calcState.targetRawMap = normalizeTargetMap(calcState.targetRawMap);
+    calcState.bankRawMap = normalizeRawStringMap(calcState.bankRawMap);
     if (!calcState.overridesMap || typeof calcState.overridesMap !== "object") calcState.overridesMap = {};
     calcState.plannerImport = normalizePlannerImport(calcState.plannerImport);
     persistCalcState();
@@ -358,6 +378,24 @@
       targetRaw: nextRaw,
       targetRawMap: nextMap,
     });
+    return nextRaw;
+  }
+
+  function getRecipeBankRaw(recipeOrUiKey, keyTypeRaw = null, state = ensureCalcState()) {
+    const targetKey = recipeTargetMapKey(recipeOrUiKey, keyTypeRaw);
+    return targetKey ? String(state?.bankRawMap?.[targetKey] || "").trim() : "";
+  }
+
+  function setRecipeBankRaw(recipeOrUiKey, rawValue, keyTypeRaw = null) {
+    const state = ensureCalcState();
+    const targetKey = recipeTargetMapKey(recipeOrUiKey, keyTypeRaw);
+    const nextMap = { ...(state.bankRawMap || {}) };
+    const nextRaw = String(rawValue == null ? "" : rawValue).trim();
+    if (targetKey) {
+      if (nextRaw) nextMap[targetKey] = nextRaw;
+      else delete nextMap[targetKey];
+    }
+    setCalcState({ bankRawMap: nextMap });
     return nextRaw;
   }
 
@@ -716,6 +754,37 @@
         align-items: center;
         gap: 6px;
       }
+      #keysInline .keysCalcFooterMain {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+      }
+      #keysInline .keysCalcBank {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-start;
+        min-width: 0;
+      }
+      #keysInline .keysCalcField.is-bank.tipHost[data-tip]:not([data-tip=""])::after {
+        width: max-content;
+        max-width: min(300px, calc(100vw - 48px));
+        white-space: normal;
+      }
+      #keysInline .keysCalcBankRow {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      #keysInline .keysCalcField.is-bank {
+        width: 196px;
+        margin-right: auto;
+      }
+      #keysInline .keysCalcField.is-bank .keysCalcInput {
+        text-align: left;
+      }
       #keysInline .keysCalcPouchIcon {
         width: 18px;
         height: 18px;
@@ -988,6 +1057,24 @@
         #keysInline .keysCalcFooter {
           justify-content: flex-start;
         }
+        #keysInline .keysCalcFooterMain {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        #keysInline .keysCalcBank {
+          width: 100%;
+        }
+        #keysInline .keysCalcBankRow {
+          width: 100%;
+        }
+        #keysInline .keysCalcField.is-bank {
+          width: 100%;
+        }
+        #keysInline .keysCalcField.is-bank .keysCalcInput {
+          flex: 1 1 auto;
+          width: auto;
+          min-width: 0;
+        }
         #keysInline .keysCalcCost.is-inline {
           text-align: left;
         }
@@ -1086,12 +1173,50 @@
       .replace(/\s+/g, "")
       .replace(/,/g, "")
       .toLowerCase();
-    const match = cleaned.match(/^(\d+(\.\d+)?)([km])?$/);
+    const match = cleaned.match(/^(\d+(\.\d+)?)([kmb])?$/);
     if (!match) return null;
     const base = Number(match[1]);
     if (!Number.isFinite(base)) return null;
-    const mult = match[3] === "m" ? 1_000_000 : match[3] === "k" ? 1_000 : 1;
+    const mult = match[3] === "b" ? 1_000_000_000 : match[3] === "m" ? 1_000_000 : match[3] === "k" ? 1_000 : 1;
     return base * mult;
+  }
+
+  function formatCoinsCompactValue(n) {
+    const formatter = getNumberShared()?.formatCoinsCompact;
+    if (typeof formatter === "function") return formatter(n);
+    if (!Number.isFinite(n)) return "";
+    const sign = n < 0 ? "-" : "";
+    const abs = Math.abs(n);
+    const compact = (value, suffix) => {
+      const rounded = Math.round(value * 10) / 10;
+      const str = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+      return `${sign}${str}${suffix}`;
+    };
+    if (abs >= 1_000_000_000) return compact(abs / 1_000_000_000, "b");
+    if (abs >= 1_000_000) return compact(abs / 1_000_000, "m");
+    if (abs >= 1_000) return compact(abs / 1_000, "k");
+    return `${sign}${Math.round(abs).toLocaleString()}`;
+  }
+
+  function normalizeBankInput(raw) {
+    const text = String(raw == null ? "" : raw)
+      .trim()
+      .replace(/\$/g, "")
+      .replace(/\s+/g, "")
+      .replace(/,/g, "")
+      .toLowerCase();
+    if (!text) return "";
+    const inferred = text.match(/^(\d+(\.\d+)?)$/);
+    const normalizedRaw = inferred
+      ? (() => {
+        const base = Number(inferred[1]);
+        if (Number.isFinite(base) && base >= 1 && base <= 99) return `${inferred[1]}m`;
+        return text;
+      })()
+      : text;
+    const parsed = parseCompactNumberValue(normalizedRaw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return "";
+    return formatCoinsCompactValue(parsed);
   }
 
   function fmtSigned(n) {
@@ -1304,6 +1429,17 @@
       : t("ui.keysFragmentsNeeded", "Fragments needed");
   }
 
+  function plannerBankLabel() {
+    return t("ui.keysBank", "Bank");
+  }
+
+  function plannerBankHelpText() {
+    return t(
+      "ui.keysBankHelp",
+      "Set a coin budget and the planner will reverse-calculate the maximum fragments you can afford with the current prices."
+    );
+  }
+
   function profitClass(v) {
     if (!(typeof v === "number" && Number.isFinite(v))) return "";
     if (v > 0) return "pos";
@@ -1458,36 +1594,71 @@
   }
 
   function buildChestTargetEstimate(recipe, market, options = {}) {
-    const targetKeyCount = parsePositiveInteger(getRecipeTargetRaw(recipe, recipe?.keyType, options));
-    if (!recipe || !targetKeyCount) return null;
+    if (!recipe) return null;
 
-    const craftsNeeded = Math.max(1, Math.ceil(targetKeyCount / Math.max(1, recipe.outputCount || 1)));
-    const producedKeys = craftsNeeded * Math.max(1, recipe.outputCount || 1);
-    const artisanMult = artisanTeaMaterialMultiplier(options);
     const useBid = normalizeBuyMode(options.buyMode) === BUY_MODE_ORDER;
+    const budgetRaw = getRecipeBankRaw(recipe, recipe?.keyType, options);
+    const budgetValue = parseCompactNumberValue(budgetRaw);
+    const hasBudgetMode = Number.isFinite(budgetValue) && budgetValue > 0;
+    const targetKeyCount = parsePositiveInteger(getRecipeTargetRaw(recipe, recipe?.keyType, options));
+    if (!hasBudgetMode && !targetKeyCount) return null;
 
-    const fragments = recipe.fragments.map((fragment) => {
+    const fragmentsBase = recipe.fragments.map((fragment) => {
       const price = ingredientPrice(fragment.itemHrid, market);
       const overrideRaw = getFragmentOverrideRaw(recipe.uiKey, fragment.itemHrid, options.overridesMap);
       const overrideValue = parseCompactNumberValue(overrideRaw);
       const unitPrice = Number.isFinite(overrideValue) ? overrideValue : (useBid ? price.bid : price.ask);
-      const totalCount = roundToTenths(craftsNeeded * fragment.count * ingredientArtisanMultiplier(fragment.itemHrid, options));
-      const totalCost = Number.isFinite(unitPrice) ? (unitPrice * totalCount) : null;
+      const countPerCraft = fragment.count * ingredientArtisanMultiplier(fragment.itemHrid, options);
       return {
         ...fragment,
-        totalCount,
+        countPerCraft,
         unitPrice,
-        totalCost,
         overrideRaw,
         hasOverride: Number.isFinite(overrideValue),
       };
     });
 
-    const totalCost = fragments.every((fragment) => Number.isFinite(fragment.totalCost))
-      ? fragments.reduce((sum, fragment) => sum + fragment.totalCost, 0)
-      : null;
+    let craftsNeeded = 0;
+    let producedKeys = 0;
+    let totalCost = null;
+    let budgetSpend = null;
+
+    if (hasBudgetMode) {
+      const perCraftCost = fragmentsBase.every((fragment) => Number.isFinite(fragment.unitPrice))
+        ? fragmentsBase.reduce((sum, fragment) => sum + (fragment.unitPrice * fragment.countPerCraft), 0)
+        : null;
+      craftsNeeded = perCraftCost && perCraftCost > 0
+        ? Math.max(0, Math.floor((budgetValue + 1e-9) / perCraftCost))
+        : 0;
+      producedKeys = craftsNeeded * Math.max(1, recipe.outputCount || 1);
+      budgetSpend = Number.isFinite(perCraftCost) ? (craftsNeeded * perCraftCost) : null;
+      totalCost = budgetSpend;
+    } else {
+      craftsNeeded = Math.max(1, Math.ceil(targetKeyCount / Math.max(1, recipe.outputCount || 1)));
+      producedKeys = craftsNeeded * Math.max(1, recipe.outputCount || 1);
+    }
+
+    const fragments = fragmentsBase.map((fragment) => {
+      const totalCount = roundToTenths(craftsNeeded * fragment.countPerCraft);
+      const totalCost = Number.isFinite(fragment.unitPrice) ? (fragment.unitPrice * totalCount) : null;
+      return {
+        ...fragment,
+        totalCount,
+        totalCost,
+      };
+    });
+
+    if (!hasBudgetMode) {
+      totalCost = fragments.every((fragment) => Number.isFinite(fragment.totalCost))
+        ? fragments.reduce((sum, fragment) => sum + fragment.totalCost, 0)
+        : null;
+    }
 
     return {
+      mode: hasBudgetMode ? "bank" : "target",
+      budgetRaw,
+      budgetValue: hasBudgetMode ? budgetValue : null,
+      budgetSpend,
       craftsNeeded,
       producedKeys,
       totalCost,
@@ -1505,6 +1676,8 @@
     const pouchDisplayValue = formatGuzzlingPouchDisplayValue(state.guzzlingPouchLevel, state.guzzlingPouchEnabled);
     const pouchDisabled = !state.guzzlingPouchEnabled;
     const targetRaw = getRecipeTargetRaw(recipe, recipe.keyType, state);
+    const bankRaw = getRecipeBankRaw(recipe, recipe.keyType, state);
+    const showBankClear = bankRaw.length > 0;
     const toggleLabel = state.expanded
       ? t("ui.keysHidePlanner", "Hide planner")
       : t("ui.keysShowPlanner", "Show planner");
@@ -1575,10 +1748,42 @@
           </div>
           <div id="keysCalcResults"></div>
           <div class="keysCalcFooter">
-            <div class="keysCalcCost is-inline">
-              <span class="keysCalcCostLabel">${escHtml(t("ui.keysTotalCost", "Total cost"))}</span>
-              <div class="keysCalcCostValue" id="keysCalcCostValue">-</div>
-              <div class="keysCalcCostLine" aria-hidden="true"></div>
+            <div class="keysCalcFooterMain">
+              <div class="keysCalcBank">
+                <span class="keysCalcFieldLabel">${escHtml(plannerBankLabel())}</span>
+                <div class="keysCalcBankRow">
+                  <label
+                    class="keysCalcField is-bank tipHost"
+                    data-tip="${escAttr(plannerBankHelpText())}"
+                    tabindex="0"
+                    role="group"
+                    aria-label="${escAttr(plannerBankHelpText())}"
+                  >
+                    <input
+                      id="keysBudgetInput"
+                      class="keysCalcInput"
+                      type="text"
+                      inputmode="decimal"
+                      spellcheck="false"
+                      autocomplete="off"
+                      placeholder="${escAttr(t("ui.keysBankPlaceholder", "Current Coins"))}"
+                      value="${escAttr(bankRaw)}"
+                      aria-label="${escAttr(plannerBankLabel())}"
+                    >
+                  </label>
+                  <button
+                    class="keysCalcResetBtn"
+                    type="button"
+                    id="keysBudgetClearBtn"
+                    ${showBankClear ? "" : "hidden"}
+                  >${escHtml(t("ui.clear", "Clear"))}</button>
+                </div>
+              </div>
+              <div class="keysCalcCost is-inline">
+                <span class="keysCalcCostLabel" id="keysCalcCostLabel">${escHtml(t("ui.keysTotalCost", "Total cost"))}</span>
+                <div class="keysCalcCostValue" id="keysCalcCostValue">-</div>
+                <div class="keysCalcCostLine" aria-hidden="true"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -1638,6 +1843,8 @@
     const head = panel.querySelector("#keysCalcHead");
     const toggleBtn = panel.querySelector("#keysCalcToggleBtn");
     const pouchInput = panel.querySelector("#keysGuzzlingPouchInput");
+    const bankInput = panel.querySelector("#keysBudgetInput");
+    const bankClearBtn = panel.querySelector("#keysBudgetClearBtn");
     if (root) root.classList.toggle("is-collapsed", !state.expanded);
     if (pouchInput) {
       const nextValue = formatGuzzlingPouchDisplayValue(state.guzzlingPouchLevel, state.guzzlingPouchEnabled);
@@ -1655,6 +1862,13 @@
     }
     if (head) {
       head.setAttribute("aria-expanded", state.expanded ? "true" : "false");
+    }
+    if (bankInput) {
+      const bankRaw = getRecipeBankRaw(getSelectedDungeonKey(), normalizeKeyType(state.selectedType), state);
+      if (bankInput.value !== bankRaw) bankInput.value = bankRaw;
+    }
+    if (bankClearBtn) {
+      bankClearBtn.hidden = !getRecipeBankRaw(getSelectedDungeonKey(), normalizeKeyType(state.selectedType), state);
     }
     panel.querySelectorAll("[data-keys-buy-mode]").forEach((btn) => {
       const mode = String(btn.getAttribute("data-keys-buy-mode") || "");
@@ -1677,15 +1891,28 @@
     if (!panel || !recipe) return;
     const results = panel.querySelector("#keysCalcResults");
     const input = panel.querySelector("#keysChestTargetInput");
+    const bankInput = panel.querySelector("#keysBudgetInput");
     const totalCostEl = panel.querySelector("#keysCalcCostValue");
+    const totalCostLabelEl = panel.querySelector("#keysCalcCostLabel");
     const targetRaw = getRecipeTargetRaw(recipe);
+    const bankRaw = getRecipeBankRaw(recipe);
     if (input && input.value !== targetRaw) {
       input.value = targetRaw;
     }
+    if (bankInput && bankInput.value !== bankRaw) {
+      bankInput.value = bankRaw;
+    }
     syncCalculatorButtonState(panel);
     const estimate = buildChestTargetEstimate(recipe, market, ensureCalcState());
+    if (totalCostLabelEl) {
+      totalCostLabelEl.textContent = estimate?.mode === "bank"
+        ? tf("ui.keysAffordableType", "Affordable {type}", { type: keyTypeLabel(recipe.keyType) })
+        : t("ui.keysTotalCost", "Total cost");
+    }
     if (totalCostEl) {
-      totalCostEl.textContent = estimate ? fmtCoins(estimate.totalCost) : "-";
+      totalCostEl.textContent = estimate
+        ? (estimate.mode === "bank" ? fmtCount(estimate.producedKeys) : fmtCoins(estimate.totalCost))
+        : "-";
     }
     if (!results) return;
     results.innerHTML = calculatorResultsHtml(recipe, estimate);
@@ -1738,6 +1965,33 @@
       resetBtn.addEventListener("click", () => {
         const nextRaw = setRecipeTargetRaw(recipe, DEFAULT_TARGET_RAW);
         if (input) input.value = nextRaw;
+        updateCalculator(panel, recipe, market);
+      });
+    }
+    const bankInput = panel.querySelector("#keysBudgetInput");
+    const bankClearBtn = panel.querySelector("#keysBudgetClearBtn");
+    if (bankInput) {
+      bankInput.addEventListener("input", () => {
+        setRecipeBankRaw(recipe, bankInput.value);
+        updateCalculator(panel, recipe, market);
+      });
+      bankInput.addEventListener("change", () => {
+        const nextRaw = normalizeBankInput(bankInput.value);
+        setRecipeBankRaw(recipe, nextRaw);
+        bankInput.value = nextRaw;
+        updateCalculator(panel, recipe, market);
+      });
+      bankInput.addEventListener("blur", () => {
+        const nextRaw = normalizeBankInput(bankInput.value);
+        setRecipeBankRaw(recipe, nextRaw);
+        bankInput.value = nextRaw;
+        updateCalculator(panel, recipe, market);
+      });
+    }
+    if (bankClearBtn) {
+      bankClearBtn.addEventListener("click", () => {
+        setRecipeBankRaw(recipe, "");
+        if (bankInput) bankInput.value = "";
         updateCalculator(panel, recipe, market);
       });
     }
