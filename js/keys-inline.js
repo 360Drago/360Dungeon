@@ -709,6 +709,18 @@
         max-width: min(220px, calc(100vw - 48px));
         white-space: nowrap;
       }
+      #keysInline .keysCalcTotalMain {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #keysInline .keysCalcTotalIcon {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        flex: 0 0 auto;
+        filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 26%, transparent));
+      }
       #keysInline .keysCalcCostLine {
         width: 100%;
         height: 3px;
@@ -1240,6 +1252,22 @@
   }
 
   function normalizeBankInput(raw) {
+    const text = sanitizeBankInputTyping(raw);
+    if (!text) return "";
+    const inferred = text.match(/^(\d+(\.\d+)?)$/);
+    const normalizedRaw = inferred
+      ? (() => {
+        const base = Number(inferred[1]);
+        if (Number.isFinite(base) && base >= 1 && base <= 999) return `${inferred[1]}m`;
+        return text;
+      })()
+      : text;
+    const parsed = parseCompactNumberValue(normalizedRaw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return "";
+    return formatCoinsCompactValue(parsed);
+  }
+
+  function sanitizeBankInputTyping(raw) {
     const text = String(raw == null ? "" : raw)
       .trim()
       .replace(/\$/g, "")
@@ -1247,17 +1275,32 @@
       .replace(/,/g, "")
       .toLowerCase();
     if (!text) return "";
-    const inferred = text.match(/^(\d+(\.\d+)?)$/);
-    const normalizedRaw = inferred
-      ? (() => {
-        const base = Number(inferred[1]);
-        if (Number.isFinite(base) && base >= 1 && base <= 99) return `${inferred[1]}m`;
-        return text;
-      })()
-      : text;
-    const parsed = parseCompactNumberValue(normalizedRaw);
-    if (!Number.isFinite(parsed) || parsed <= 0) return "";
-    return formatCoinsCompactValue(parsed);
+    let numericPart = "";
+    let suffix = "";
+    let seenDecimal = false;
+    for (const ch of text) {
+      if (/\d/.test(ch)) {
+        if (!suffix) numericPart += ch;
+        continue;
+      }
+      if (ch === ".") {
+        if (!suffix && !seenDecimal) {
+          numericPart += numericPart ? "." : "0.";
+          seenDecimal = true;
+        }
+        continue;
+      }
+      if ((ch === "k" || ch === "m" || ch === "b") && numericPart && !suffix) {
+        suffix = ch;
+        continue;
+      }
+    }
+    return `${numericPart}${suffix}`;
+  }
+
+  function shouldReplaceOnDigitKey(event) {
+    if (!event || event.ctrlKey || event.metaKey || event.altKey) return false;
+    return /^\d$/.test(String(event.key || ""));
   }
 
   function fmtSigned(n) {
@@ -1946,6 +1989,7 @@
     syncCalculatorButtonState(panel);
     const estimate = buildChestTargetEstimate(recipe, market, ensureCalcState());
     const artisanBudgetEstimate = estimate?.mode === "bank" && !!ensureCalcState().artisanEnabled;
+    const keyIcon = recipe?.keyHrid ? iconPath(recipe.keyHrid) : "";
     if (totalCostLabelEl) {
       totalCostLabelEl.textContent = estimate?.mode === "bank"
         ? t("ui.keysTotalForBudget", "Total Keys for your budget")
@@ -1960,10 +2004,20 @@
             class="keysCalcEstimateBadge tipHost"
             data-tip="${escAttr(t("ui.keysEstimateArtisanHelp", "Estimated when artisan is enabled"))}"
           >${escHtml(t("ui.keysEstimatePrefix", "~"))}</span>
-          <span>${escHtml(fmtCount(estimate.producedKeys))}</span>
+          <span class="keysCalcTotalMain">
+            <span>${escHtml(fmtCount(estimate.producedKeys))}</span>
+            ${keyIcon ? `<img src="${escAttr(keyIcon)}" alt="" class="keysCalcTotalIcon" loading="lazy" onerror="this.style.display='none'">` : ""}
+          </span>
+        `;
+      } else if (estimate.mode === "bank") {
+        totalCostEl.innerHTML = `
+          <span class="keysCalcTotalMain">
+            <span>${escHtml(fmtCount(estimate.producedKeys))}</span>
+            ${keyIcon ? `<img src="${escAttr(keyIcon)}" alt="" class="keysCalcTotalIcon" loading="lazy" onerror="this.style.display='none'">` : ""}
+          </span>
         `;
       } else {
-        totalCostEl.textContent = estimate.mode === "bank" ? fmtCount(estimate.producedKeys) : fmtCoins(estimate.totalCost);
+        totalCostEl.textContent = fmtCoins(estimate.totalCost);
       }
     }
     if (!results) return;
@@ -2023,20 +2077,39 @@
     const bankInput = panel.querySelector("#keysBudgetInput");
     const bankClearBtn = panel.querySelector("#keysBudgetClearBtn");
     if (bankInput) {
+      bankInput.addEventListener("focus", () => {
+        bankInput.dataset.replaceOnDigit = bankInput.value ? "1" : "";
+      });
+      bankInput.addEventListener("keydown", (event) => {
+        if (!bankInput.dataset.replaceOnDigit) return;
+        if (shouldReplaceOnDigitKey(event)) {
+          bankInput.value = "";
+          bankInput.dataset.replaceOnDigit = "";
+          return;
+        }
+        if (event.key === "Backspace" || event.key === "Delete" || event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home" || event.key === "End") {
+          bankInput.dataset.replaceOnDigit = "";
+        }
+      });
       bankInput.addEventListener("input", () => {
-        setRecipeBankRaw(recipe, bankInput.value);
+        const nextRaw = sanitizeBankInputTyping(bankInput.value);
+        if (bankInput.value !== nextRaw) bankInput.value = nextRaw;
+        bankInput.dataset.replaceOnDigit = "";
+        setRecipeBankRaw(recipe, nextRaw);
         updateCalculator(panel, recipe, market);
       });
       bankInput.addEventListener("change", () => {
         const nextRaw = normalizeBankInput(bankInput.value);
         setRecipeBankRaw(recipe, nextRaw);
         bankInput.value = nextRaw;
+        bankInput.dataset.replaceOnDigit = "";
         updateCalculator(panel, recipe, market);
       });
       bankInput.addEventListener("blur", () => {
         const nextRaw = normalizeBankInput(bankInput.value);
         setRecipeBankRaw(recipe, nextRaw);
         bankInput.value = nextRaw;
+        bankInput.dataset.replaceOnDigit = "";
         updateCalculator(panel, recipe, market);
       });
     }
@@ -2065,8 +2138,23 @@
 
     const pouchInput = panel.querySelector("#keysGuzzlingPouchInput");
     if (pouchInput) {
+      pouchInput.addEventListener("focus", () => {
+        pouchInput.dataset.replaceOnDigit = pouchInput.value ? "1" : "";
+      });
+      pouchInput.addEventListener("keydown", (event) => {
+        if (!pouchInput.dataset.replaceOnDigit) return;
+        if (shouldReplaceOnDigitKey(event)) {
+          pouchInput.value = "";
+          pouchInput.dataset.replaceOnDigit = "";
+          return;
+        }
+        if (event.key === "Backspace" || event.key === "Delete" || event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home" || event.key === "End") {
+          pouchInput.dataset.replaceOnDigit = "";
+        }
+      });
       pouchInput.addEventListener("input", () => {
         setCalcState({ guzzlingPouchLevel: normalizeGuzzlingPouchLevel(String(pouchInput.value || "").replace(/[^\d]/g, "")) });
+        pouchInput.dataset.replaceOnDigit = "";
         refreshZoneCardGrid(panel, recipes, market);
         updateCalculator(panel, recipe, market);
       });
@@ -2074,6 +2162,7 @@
         const nextLevel = normalizeGuzzlingPouchLevel(String(pouchInput.value || "").replace(/[^\d]/g, ""));
         setCalcState({ guzzlingPouchLevel: nextLevel });
         pouchInput.value = formatGuzzlingPouchDisplayValue(nextLevel, true);
+        pouchInput.dataset.replaceOnDigit = "";
         refreshZoneCardGrid(panel, recipes, market);
         updateCalculator(panel, recipe, market);
       });
