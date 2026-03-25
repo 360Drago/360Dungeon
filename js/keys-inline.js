@@ -1988,7 +1988,7 @@
     }
     syncCalculatorButtonState(panel);
     const estimate = buildChestTargetEstimate(recipe, market, ensureCalcState());
-    const artisanBudgetEstimate = estimate?.mode === "bank" && !!ensureCalcState().artisanEnabled;
+    const artisanEstimate = !!estimate && !!ensureCalcState().artisanEnabled;
     const keyIcon = recipe?.keyHrid ? iconPath(recipe.keyHrid) : "";
     if (totalCostLabelEl) {
       totalCostLabelEl.textContent = estimate?.mode === "bank"
@@ -1998,7 +1998,7 @@
     if (totalCostEl) {
       if (!estimate) {
         totalCostEl.textContent = "-";
-      } else if (artisanBudgetEstimate) {
+      } else if (artisanEstimate && estimate.mode === "bank") {
         totalCostEl.innerHTML = `
           <span
             class="keysCalcEstimateBadge tipHost"
@@ -2015,6 +2015,14 @@
             <span>${escHtml(fmtCount(estimate.producedKeys))}</span>
             ${keyIcon ? `<img src="${escAttr(keyIcon)}" alt="" class="keysCalcTotalIcon" loading="lazy" onerror="this.style.display='none'">` : ""}
           </span>
+        `;
+      } else if (artisanEstimate) {
+        totalCostEl.innerHTML = `
+          <span
+            class="keysCalcEstimateBadge tipHost"
+            data-tip="${escAttr(t("ui.keysEstimateArtisanHelp", "Estimated when artisan is enabled"))}"
+          >${escHtml(t("ui.keysEstimatePrefix", "~"))}</span>
+          <span>${escHtml(fmtCoins(estimate.totalCost))}</span>
         `;
       } else {
         totalCostEl.textContent = fmtCoins(estimate.totalCost);
