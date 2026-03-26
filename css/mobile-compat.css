@@ -62,6 +62,30 @@ html.mobile-compat .apiSourceTag {
   will-change: auto;
 }
 
+html.mobile-compat .apiSourceCurrent {
+  width: 100%;
+  justify-content: flex-end;
+  text-align: right;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+html.mobile-compat .apiSourceMenu {
+  position: static;
+  width: min(100%, 320px);
+  min-width: 0;
+  margin-top: 4px;
+}
+
+html.mobile-compat .apiSourceOption {
+  width: 100%;
+  padding: 10px 12px;
+}
+
+html.mobile-compat .apiSourceOptionAge {
+  font-size: 10.5px;
+}
+
 html.mobile-compat .apiSourceTag.is-hidden {
   display: none;
   transform: none !important;
@@ -75,6 +99,7 @@ html.mobile-compat .selectionBar,
 html.mobile-compat .simpleStage,
 html.mobile-compat .options,
 html.mobile-compat #tokenShopInline,
+html.mobile-compat #zoneCompareInline,
 html.mobile-compat #keysInline {
   width: min(100%, var(--mobile-content-w));
   max-width: 100%;
@@ -499,6 +524,11 @@ html.mobile-compat #tokenShopInline .shopActions {
   justify-content: flex-end;
 }
 
+html.mobile-compat #tokenShopInline .tsDetailShell {
+  padding: 14px 12px 16px;
+  border-radius: 16px;
+}
+
 html.mobile-compat #tokenShopInline .tokenTable {
   width: 100%;
   min-width: 0;
@@ -580,6 +610,21 @@ html.mobile-compat #keysInline .keysFoot {
   row-gap: 6px;
 }
 
+html.mobile-compat #keysInline .keysCalcBankRow,
+html.mobile-compat #keysInline .keysCalcTargetRow,
+html.mobile-compat #keysInline .keysCalcFieldRow {
+  flex-wrap: wrap;
+}
+
+html.mobile-compat #keysInline .keysCalcResetBtn,
+html.mobile-compat #keysInline .keysCalcCost.is-inline {
+  min-width: 0;
+}
+
+html.mobile-compat #keysInline .keysCalcField.is-bank.tipHost[data-tip]:not([data-tip=""])::after {
+  max-width: min(260px, calc(100vw - 40px));
+}
+
 html.mobile-compat #keysInline .keysMiniHost {
   width: 100%;
   overflow: hidden;
@@ -608,6 +653,26 @@ html.mobile-compat #keysInline .keysMiniTable .labelCell {
 
 html.mobile-compat .overviewLoot {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideSection {
+  padding: 12px;
+  border-radius: 16px;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideSection > .row.spread,
+html.mobile-compat #zoneCompareInline .lootOverrideControls > .row.spread {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideFilterField {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideList {
+  max-height: 320px;
 }
 
 html.mobile-compat.mobile-compat-tight .headerGrid {
@@ -651,6 +716,25 @@ html.mobile-compat.mobile-compat-xs .brand {
 
 html.mobile-compat.mobile-compat-xs .subtitleRow .modeTglText {
   font-size: 11px;
+}
+
+html.mobile-compat.mobile-compat-xs .apiSourceTag {
+  padding-inline: calc(8px + var(--mobile-safe-x));
+}
+
+html.mobile-compat.mobile-compat-xs .apiSourceMenu {
+  width: 100%;
+}
+
+html.mobile-compat.mobile-compat-xs .apiSourceOption {
+  align-items: flex-start;
+  row-gap: 2px;
+  flex-wrap: wrap;
+}
+
+html.mobile-compat.mobile-compat-xs .apiSourceOptionAge {
+  width: 100%;
+  margin-left: 14px;
 }
 
 html.mobile-compat.mobile-compat-xs #tokenShopInline .lineWrap {
