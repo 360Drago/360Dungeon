@@ -549,7 +549,7 @@
                   <div class="choiceTop">
                     <div class="choiceName">Official API</div>
                     <div class="choiceTag">
-                      Last refresh: <span class="mono" id="officialAge">—</span>
+                      Last checked: <span class="mono" id="officialAge">—</span>
                     </div>
                   </div>
 
@@ -717,7 +717,7 @@
                 <input id="lootOverrideFilter" type="text" inputmode="search" placeholder="Type to search…" />
               </div>
 
-              <button class="ghostBtn tipHost" type="button" id="lootOverrideResetBtn" data-tip="Official API Prices">
+              <button class="ghostBtn tipHost" type="button" id="lootOverrideResetBtn" data-tip="Current API Prices">
                 Reset Loot Prices
               </button>
             </div>
@@ -742,13 +742,13 @@
     <span>Created by <strong>360Drago</strong></span>
   </footer>
   <div class="apiSourceTag" id="apiSourceTag" aria-live="polite" aria-atomic="true">
-    <div class="apiSourceLine">
-      <span class="apiSourceName" id="apiSourceOfficialLabel">Official</span>
-      <span class="apiSourceValue" id="apiSourceOfficialValue">—</span>
-    </div>
-    <div class="apiSourceLine">
-      <span class="apiSourceName" id="apiSourceOtherLabel">Mooket</span>
-      <span class="apiSourceValue" id="apiSourceOtherValue">—</span>
+    <button class="apiSourceCurrent" id="apiSourceCurrentBtn" type="button" aria-haspopup="menu" aria-expanded="false">
+      <span class="apiSourceName" id="apiSourceActiveLabel">Official</span>
+      <span class="apiSourceValue" id="apiSourceActiveValue">—</span>
+    </button>
+    <div class="apiSourceMenu" id="apiSourceMenu" role="menu" hidden>
+      <button class="apiSourceOption" id="apiSourceOfficialOption" type="button" role="menuitemradio" aria-checked="true" data-api-source="official">Official</button>
+      <button class="apiSourceOption" id="apiSourceOtherOption" type="button" role="menuitemradio" aria-checked="false" data-api-source="other">Mooket</button>
     </div>
   </div>
 
