@@ -157,6 +157,15 @@
           ensure: defaultSelectionEnsure,
         },
         {
+          id: "api-source-footer",
+          title: "Site-Wide API",
+          body:
+            "You can also change it across the whole site down here.",
+          target: "#apiSourceTag",
+          placement: "top",
+          ensure: defaultSelectionEnsure,
+        },
+        {
           id: "run-panel",
           title: "Run Inputs",
           body:

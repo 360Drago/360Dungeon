@@ -494,6 +494,10 @@
         title: "跑图输入",
         body: "就像 Noland 之前说的，在计算前先确认这里的玩家信息。通关时间或增益只要有一点点偏差，结果都可能比你想的变动更大。",
       };
+      hansAdvanced.step["api-source-footer"] = {
+        title: "\u5168\u7ad9 API",
+        body: "\u4f60\u4e5f\u53ef\u4ee5\u5728\u8fd9\u91cc\u5207\u6362\u6574\u4e2a\u7f51\u7ad9\u4f7f\u7528\u7684 API\u3002",
+      };
       hansAdvanced.step["manual-loot-prices"] = {
         title: "手动掉落价格",
         body: "这里可以逐项覆盖掉落价值。如果你有自己的估价，或者市场上暂时没人挂单，就在这里手动调整。但要小心，错误的价格会让利润看起来比真实情况更好。",
@@ -561,6 +565,10 @@
       hantAdvanced.step["run-panel"] = {
         title: "跑圖輸入",
         body: "就像 Noland 之前說的，在計算前先確認這裡的玩家資訊。通關時間或增益只要有一點點偏差，結果都可能比你想的變動更大。",
+      };
+      hantAdvanced.step["api-source-footer"] = {
+        title: "\u5168\u7ad9 API",
+        body: "\u4f60\u4e5f\u53ef\u4ee5\u5728\u9019\u88e1\u5207\u63db\u6574\u500b\u7db2\u7ad9\u4f7f\u7528\u7684 API\u3002",
       };
       hantAdvanced.step["manual-loot-prices"] = {
         title: "手動掉落價格",
