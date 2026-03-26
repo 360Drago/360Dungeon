@@ -18,9 +18,14 @@
     return (source === "manual" || source === "other") ? source : "official";
   }
 
-  function getEffectiveApiSource(model) {
+  function normalizeApiSource(source) {
+    return source === "other" ? "other" : "official";
+  }
+
+  function getEffectiveApiSource(model, opts = {}) {
+    const activeApiSource = normalizeApiSource(opts?.activeApiSource);
     if (model === "other") return "other";
-    if (model === "manual") return "official";
+    if (model === "manual") return activeApiSource;
     return "official";
   }
 
@@ -33,7 +38,7 @@
   function getSavedRecordByModel(opts = {}) {
     const dungeonKey = opts?.dungeonKey;
     const model = opts?.model;
-    const saved = getSavedByApiSource(getEffectiveApiSource(model), opts);
+    const saved = getSavedByApiSource(getEffectiveApiSource(model, opts), opts);
     return getSavedRecordFromMap(saved, dungeonKey);
   }
 
@@ -75,22 +80,27 @@
       manualSaved,
     } = opts || {};
     if (model === "manual") {
-      const base = getSavedKeyPricesAB(officialSaved, dungeonKey);
+      const base = getSavedKeyPricesAB(getSavedByApiSource(getEffectiveApiSource("manual", opts), opts), dungeonKey);
       return applyManualKeyOverrides(base, manualSaved);
     }
     if (model === "other") return getSavedKeyPricesAB(otherSaved, dungeonKey);
     return getSavedKeyPricesAB(officialSaved, dungeonKey);
   }
 
-  function pricingModelLabel(model) {
+  function pricingModelLabel(model, opts = {}) {
     if (model === "official") return t("ui.official", "Official");
-    if (model === "manual") return t("ui.manualPlusOfficial", "Manual + Official");
+    if (model === "manual") {
+      return normalizeApiSource(opts?.activeApiSource) === "other"
+        ? t("ui.manualPlusMooket", "Manual + Mooket")
+        : t("ui.manualPlusOfficial", "Manual + Official");
+    }
     return t("ui.mooket", "Mooket");
   }
 
   window.DungeonPricingStateShared = {
     getSavedRecordFromMap,
     normalizeModelFromSource,
+    normalizeApiSource,
     getEffectiveApiSource,
     getSavedByApiSource,
     getSavedRecordByModel,

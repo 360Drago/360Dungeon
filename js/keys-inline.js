@@ -6,8 +6,14 @@
 
   const STYLE_ID = "keysInlineStyleV3";
   const AGE_TIMER_KEY = "__keysInlineAgeTimer";
-  const REFRESH_TS_KEY = "dungeon.keys.lastRefreshTs.official";
-  const MARKET_URL = "https://www.milkywayidle.com/game_data/marketplace.json";
+  const KEYS_REFRESH_TS_KEYS = Object.freeze({
+    official: "dungeon.keys.lastRefreshTs.official",
+    other: "dungeon.keys.lastRefreshTs.other",
+  });
+  const MARKET_URLS = Object.freeze({
+    official: "https://www.milkywayidle.com/game_data/marketplace.json",
+    other: "https://mooket.qi-e.top/market/api.json",
+  });
   const ARTISAN_BASE_REDUCTION = 0.1;
   const ARTISAN_TEA_HRID = "/items/artisan_tea";
   const COIN_HRID = "/items/coin";
@@ -53,9 +59,9 @@
     0.20,
   ]);
 
-  let marketCache = null;
-  let marketCacheTs = 0;
-  let marketFetchInFlight = null;
+  let marketCacheBySource = { official: null, other: null };
+  let marketCacheTsBySource = { official: 0, other: 0 };
+  let marketFetchInFlightBySource = { official: null, other: null };
   let recipeCache = null;
   let calcState = null;
 
@@ -91,6 +97,10 @@
 
   function getUiStateShared() {
     return getShared("DungeonUiStateShared");
+  }
+
+  function getPricingStateShared() {
+    return getShared("DungeonPricingStateShared");
   }
 
   function getNumberShared() {
@@ -135,6 +145,34 @@
 
   function storageRemoveItem(key) {
     storageCall("removeItem", key);
+  }
+
+  function normalizeApiSource(raw) {
+    const normalize = getPricingStateShared()?.normalizeApiSource;
+    if (typeof normalize === "function") return normalize(raw);
+    return raw === "other" ? "other" : "official";
+  }
+
+  function getActiveApiSource() {
+    return normalizeApiSource(window.DungeonAPI?.getActiveApiSource?.() || "official");
+  }
+
+  function apiSourceLabel(source = getActiveApiSource()) {
+    return normalizeApiSource(source) === "other"
+      ? t("ui.mooket", "Mooket")
+      : t("ui.official", "Official");
+  }
+
+  function keysRefreshStorageKey(source = getActiveApiSource()) {
+    return KEYS_REFRESH_TS_KEYS[normalizeApiSource(source)] || KEYS_REFRESH_TS_KEYS.official;
+  }
+
+  function marketUrlForSource(source = getActiveApiSource()) {
+    return MARKET_URLS[normalizeApiSource(source)] || MARKET_URLS.official;
+  }
+
+  function getCachedMarketData(source = getActiveApiSource()) {
+    return marketCacheBySource[normalizeApiSource(source)] || null;
   }
 
   function normalizeBuyMode(raw) {
@@ -1159,36 +1197,55 @@
     document.head.appendChild(style);
   }
 
-  async function fetchOfficialMarketplaceJson() {
+  async function fetchMarketplaceJsonForSource(source = getActiveApiSource()) {
     const fetchWithFallback = getMarketShared()?.fetchWithProxyFallback;
     if (typeof fetchWithFallback !== "function") return null;
-    const result = await fetchWithFallback(MARKET_URL, 12000);
+    const result = await fetchWithFallback(marketUrlForSource(source), 12000);
     return result.json;
   }
 
   async function ensureMarketData(opts = {}) {
+    const apiSource = normalizeApiSource(opts.apiSource || getActiveApiSource());
     const force = !!opts.force;
-    const freshEnough = (Date.now() - marketCacheTs) < (5 * 60 * 1000);
-    if (!force && marketCache && freshEnough) return marketCache;
-    if (marketFetchInFlight) return marketFetchInFlight;
+    const freshEnough = (Date.now() - Number(marketCacheTsBySource[apiSource] || 0)) < (5 * 60 * 1000);
+    if (!force && getCachedMarketData(apiSource) && freshEnough) return getCachedMarketData(apiSource);
+    if (marketFetchInFlightBySource[apiSource]) return marketFetchInFlightBySource[apiSource];
 
-    marketFetchInFlight = (async () => {
-      const cachedMarket = marketCache;
-      const json = await fetchOfficialMarketplaceJson();
+    marketFetchInFlightBySource[apiSource] = (async () => {
+      const cachedMarket = getCachedMarketData(apiSource);
+      if (force && typeof window.DungeonAPI?.refreshPricesForAllDungeons === "function") {
+        try {
+          await window.DungeonAPI.refreshPricesForAllDungeons(apiSource, {
+            silent: true,
+            reason: "keys",
+          });
+        } catch (_) { }
+      }
+      const json = await fetchMarketplaceJsonForSource(apiSource);
       if (!hasUsableMarketplacePayload(json)) {
         if (!force && cachedMarket) return cachedMarket;
         throw new Error(t("ui.invalidApiPayload", "Invalid API payload."));
       }
-      marketCache = json;
-      marketCacheTs = Date.now();
-      try { storageSetItem(REFRESH_TS_KEY, String(marketCacheTs)); } catch (_) { }
-      return marketCache;
+      marketCacheBySource = {
+        ...marketCacheBySource,
+        [apiSource]: json,
+      };
+      const nextTs = Date.now();
+      marketCacheTsBySource = {
+        ...marketCacheTsBySource,
+        [apiSource]: nextTs,
+      };
+      try { storageSetItem(keysRefreshStorageKey(apiSource), String(nextTs)); } catch (_) { }
+      return json;
     })();
 
     try {
-      return await marketFetchInFlight;
+      return await marketFetchInFlightBySource[apiSource];
     } finally {
-      marketFetchInFlight = null;
+      marketFetchInFlightBySource = {
+        ...marketFetchInFlightBySource,
+        [apiSource]: null,
+      };
     }
   }
 
@@ -1317,12 +1374,12 @@
     return "-";
   }
 
-  function startAgeTimer(spanEl) {
+  function startAgeTimer(spanEl, source = getActiveApiSource()) {
     const startTimer = getTimeShared()?.startAgeTimerFromStorage;
     if (typeof startTimer !== "function") return;
     startTimer(spanEl, {
       timerKey: AGE_TIMER_KEY,
-      storageKey: REFRESH_TS_KEY,
+      storageKey: keysRefreshStorageKey(source),
       invalidText: "-",
       intervalMs: 5000,
       formatter: formatAge,
@@ -2272,15 +2329,33 @@
     return { recipes, market };
   }
 
+  async function getRelevantPricingHrids(dungeonKey = getSelectedDungeonKey()) {
+    const uiKey = String(dungeonKey || "").trim() || getSelectedDungeonKey();
+    if (!uiKey) return [];
+    const selectedType = normalizeKeyType(ensureCalcState().selectedType);
+    const recipes = await buildRecipesFromInit(selectedType);
+    const recipe = recipes.find((entry) => entry?.uiKey === uiKey) || null;
+    if (!recipe) return [];
+    const hrids = new Set();
+    if (recipe.keyHrid) hrids.add(recipe.keyHrid);
+    (recipe.fragments || []).forEach((fragment) => {
+      const hrid = String(fragment?.itemHrid || "").trim();
+      if (hrid) hrids.add(hrid);
+    });
+    return Array.from(hrids);
+  }
+
   function plannerShellHtml(selectedRecipe) {
     const selectedType = normalizeKeyType(ensureCalcState().selectedType);
     const toggleText = keyModeToggleLabel(selectedType);
+    const sourceLabel = apiSourceLabel();
+    const refreshTitle = tf("ui.refreshApiPricesTip", "Refresh {source} API prices", { source: sourceLabel });
     return `
       ${calculatorPanelHtml(selectedRecipe)}
       <div class="keysFoot">
         <span class="refreshAge" id="keysRefreshAge">-</span>
         <button class="miniBtn" type="button" id="keysTypeBtn" aria-label="${escAttr(toggleText)}" title="${escAttr(toggleText)}">${escHtml(toggleText)}</button>
-        <button class="miniBtn" type="button" id="keysRefreshBtn" title="${escAttr(t("ui.refreshOfficialApi", "Refresh official API"))}">${escHtml(t("ui.refreshPrices", "Refresh prices"))}</button>
+        <button class="miniBtn" type="button" id="keysRefreshBtn" title="${escAttr(refreshTitle)}" aria-label="${escAttr(refreshTitle)}">${escHtml(t("ui.refreshPrices", "Refresh prices"))}</button>
       </div>
     `;
   }
@@ -2328,7 +2403,7 @@
     if (!plannerShell) return;
     plannerShell.innerHTML = plannerShellHtml(selectedRecipe);
     const ageSpan = plannerShell.querySelector("#keysRefreshAge");
-    startAgeTimer(ageSpan);
+    startAgeTimer(ageSpan, getActiveApiSource());
     const refreshBtn = plannerShell.querySelector("#keysRefreshBtn");
     bindKeysRefreshButton(refreshBtn);
     const typeBtn = plannerShell.querySelector("#keysTypeBtn");
@@ -2337,6 +2412,14 @@
       updateCalculator(panel, selectedRecipe, market);
       bindCalculatorControls(panel, selectedRecipe, recipes, market);
     }
+    try {
+      document.dispatchEvent(new CustomEvent("keys:planner-changed", {
+        detail: {
+          uiKey: String(selectedRecipe?.uiKey || ""),
+          keyType: normalizeKeyType(ensureCalcState().selectedType),
+        },
+      }));
+    } catch (_) { }
   }
 
   function bindKeyTypeButton(typeBtn, selectedRecipe) {
@@ -2423,7 +2506,7 @@
       const selectedDungeonKey = getSelectedDungeonKey();
       updateZoneCardSelection(panel, selectedDungeonKey);
       const selectedRecipe = recipes.find((recipe) => recipe.uiKey === selectedDungeonKey) || null;
-      renderPlannerShell(panel, selectedRecipe, recipes, marketCache);
+      renderPlannerShell(panel, selectedRecipe, recipes, getCachedMarketData());
     });
     apply();
 
@@ -2431,6 +2514,7 @@
       render,
       isActive: () => !!toggle.checked,
       importPlannerPayload,
+      getRelevantPricingHrids,
     };
   }
 

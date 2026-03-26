@@ -28,13 +28,17 @@
     const LANG_LABEL = { en: "EN", "zh-Hans": "简体", "zh-Hant": "繁體" };
     const WHITELIST_URL = "./assets/WhiteList.txt";
     const PROFILE_SNAPSHOT_VERSION = 2;
-    const SHARE_PAYLOAD_VERSION = 8;
+    const SHARE_PAYLOAD_VERSION = 9;
     const SHARE_CRITICAL_VERSION = 2;
     const SHARE_SEGMENT_DELIMITER = "-";
     const PROFILE_SLOT_COUNT = 4;
     const LS_PROFILE_ACTIVE = "site.profile.active";
     const LS_PROFILE_PREFIX = "site.profile.slot.";
     const LS_PROFILE_LOCKS = "site.profile.locks.v1";
+    const SHARED_LOOT_OVERRIDE_ENABLED_KEY = "dungeon.lootOverrideEnabled";
+    const SHARED_LOOT_PRICE_OVERRIDES_KEY = "dungeon.lootPriceOverrides";
+    const LEGACY_ZONE_MANUAL_LOOT_KEY = "dungeon.zoneCompare.manualLoot.v1";
+    const LEGACY_ZONE_MANUAL_OVERRIDES_KEY = "dungeon.zoneCompare.manualOverrides.v1";
     const LOCK_RESTRICTED_SELECTOR = [
         "#manualEntry",
         "#manualEntrySlider",
@@ -153,6 +157,26 @@
         rc: 17,
         po: 18,
     });
+    const SHARE_PAYLOAD_INDEX_V9 = Object.freeze({
+        v: 0,
+        vm: 1,
+        d: 2,
+        t: 3,
+        m: 4,
+        g: 5,
+        f: 6,
+        zf: 7,
+        b: 8,
+        c: 9,
+        x: 10,
+        l: 11,
+        z: 12,
+        fc: 13,
+        u: 14,
+        r: 15,
+        rc: 16,
+        po: 17,
+    });
     const SHARE_FLAG_ADVANCED = 1;
     const SHARE_FLAG_LOOT_OVERRIDE = 2;
     const SHARE_FLAG_LOW_DROP = 4;
@@ -267,7 +291,7 @@
             "ui.entryPricePlaceholder": "e.g. 600k",
             "ui.chestPricePlaceholder": "e.g. 6m",
             "ui.enterValueLike": "Enter a value like 600k or 6m.",
-            "ui.lastRefresh": "Last refresh",
+            "ui.lastRefresh": "Last checked",
             "ui.usesOfficialEndpoint": "Uses the official pricing endpoint.",
             "ui.refreshNow": "Refresh now",
             "ui.instant": "Instant",
@@ -282,7 +306,7 @@
             "ui.overrideDropValues": "Override specific drop values used for EV calculations.",
             "ui.filterItems": "Filter items",
             "ui.typeToSearch": "Type to search...",
-            "ui.officialApiPrices": "Official API Prices",
+            "ui.officialApiPrices": "Current API Prices",
             "ui.resetLootPrices": "Reset Loot Prices",
             "ui.lootHintDefault": "Prices shown are current market values (placeholder). Enter a value to override. Leave blank to use the market.",
             "ui.createdBy": "Created by",
@@ -297,13 +321,13 @@
             "ui.noDungeonSelected": "No dungeon selected.",
             "ui.noHridMapping": "No HRID mapping for selected dungeon.",
             "ui.apiRefreshFailed": "Couldn't refresh prices right now.",
-            "ui.officialApiRefreshed": "Official API refreshed{proxy}.",
+            "ui.officialApiRefreshed": "Official API checked for new data{proxy}.",
             "ui.proxyViaSuffix": " (via proxy)",
             "ui.proxySuffix": " (proxy)",
             "ui.officialApiRefreshFailedToast": "Couldn't refresh Official prices right now.",
             "ui.officialApiRefreshUsingSaved": "Couldn't refresh Official prices right now. Using your last saved prices.",
             "ui.officialApiRefreshRetry": "Couldn't refresh Official prices right now. Please try again in a moment.",
-            "ui.mooketApiRefreshed": "Mooket API refreshed.",
+            "ui.mooketApiRefreshed": "Mooket API checked for new data.",
             "ui.mooketApiRefreshFailedToast": "Couldn't refresh Mooket prices right now.",
             "ui.mooketApiRefreshUsingSaved": "Couldn't refresh Mooket prices right now. Using your last saved prices.",
             "ui.mooketApiRefreshRetry": "Couldn't refresh Mooket prices right now. Please try again in a moment.",
@@ -320,9 +344,13 @@
             "ui.market": "market",
             "ui.mixed": "mixed",
             "ui.refinedShards": "Refined Shards",
-            "ui.officialApiLastRefresh": "Official API • Last refresh: {age}",
-            "ui.officialApiLastRefreshDash": "Official API - Last refresh: {age}",
-            "ui.mooketUpdated": "Mooket updated: {time}{proxy}",
+            "ui.officialApiLastRefresh": "Official API • Data updated: {age}",
+            "ui.officialApiLastRefreshDash": "Official API - Data updated: {age}",
+            "ui.mooketUpdated": "Mooket data updated: {time}{proxy}",
+            "ui.apiDataUpdatedLine": "{source} API • Data updated: {age}",
+            "ui.apiDataUpdatedTitle": "{source} API • Data updated: {age}",
+            "ui.refreshApiPricesTip": "Check {source} API for new data",
+            "ui.checkedStamp": "Last checked: {time}",
             "ui.runSummary": "Clear time: {clear} - Buff: {buff}",
             "ui.runClearFmt": "{value} min",
             "ui.runBuffFmt": "{value}/20",
@@ -351,7 +379,7 @@
             "ui.playerInfoRequired": "Player Information is required (buff 0-20, clear time).",
             "ui.calculationFailedPrefix": "Calculation failed: {error}",
             "ui.calculationFailedConsole": "Calculation failed (see console).",
-            "ui.clearedInputsResetManualOfficial": "Cleared inputs and reset manual key prices to Official API.",
+            "ui.clearedInputsResetManualOfficial": "Cleared inputs and reset manual key prices to the current API.",
             "ui.scrollUpAgainReturn": "Scroll up again to return to landing.",
             "ui.bestValue": "Best value",
             "ui.best": "best",
@@ -365,6 +393,7 @@
             "ui.keysFragmentsNeeded": "Fragments needed",
             "ui.keysMaterialsNeeded": "Materials needed",
             "ui.keysTotalCost": "Total cost",
+            "ui.keysTotalForBudget": "Total Keys for your budget",
             "ui.keysKeysProduced": "Chest keys",
             "ui.keysCraftRuns": "Crafts",
             "ui.reset": "Reset",
@@ -374,6 +403,8 @@
             "ui.keysAutoPrice": "Auto",
             "ui.keysManualPrice": "Manual Price Input",
             "ui.keysEachPrice": "@ {price} ea",
+            "ui.keysBankPlaceholder": "Current Coins",
+            "ui.keysEstimateArtisanHelp": "Estimated when artisan is enabled",
             "ui.artisan": "Artisan",
             "ui.guzzlingPouchLevel": "Guzzling Pouch lv.",
             "ui.artisanCost": "Artisan Cost",
@@ -451,6 +482,12 @@
             "ui.developerPanel": "Developer Panel",
             "ui.zoneView": "Zone view:",
             "ui.zoneSelector": "Zone selector",
+            "ui.activeApi": "Active API",
+            "ui.differentOnly": "Different only",
+            "ui.allItems": "All items",
+            "ui.apiPriceCompare": "API price compare",
+            "ui.tokenShopPricingItems": "token shop pricing items",
+            "ui.zoneComparePricingItems": "zone compare chest items",
             "ui.buffTier": "Buff tier:",
             "ui.taxPercent": "Tax %:",
             "ui.entryKeyAskBid": "Entry key (ask/bid):",
@@ -619,7 +656,7 @@
             "ui.entryPricePlaceholder": "例如 600k",
             "ui.chestPricePlaceholder": "例如 6m",
             "ui.enterValueLike": "请输入类似 600k 或 6m 的值。",
-            "ui.lastRefresh": "上次刷新",
+            "ui.lastRefresh": "上次检查",
             "ui.usesOfficialEndpoint": "使用官方定价接口。",
             "ui.refreshNow": "立即刷新",
             "ui.instant": "即买",
@@ -634,7 +671,7 @@
             "ui.overrideDropValues": "覆盖 EV 计算使用的特定掉落值。",
             "ui.filterItems": "筛选物品",
             "ui.typeToSearch": "输入以搜索...",
-            "ui.officialApiPrices": "官方 API 价格",
+            "ui.officialApiPrices": "当前 API 价格",
             "ui.resetLootPrices": "重置掉落价格",
             "ui.lootHintDefault": "显示的是当前市场价格（占位）。输入数值可覆盖，留空则使用市场价。",
             "ui.createdBy": "创建者",
@@ -657,9 +694,15 @@
             "ui.market": "市场",
             "ui.mixed": "混合",
             "ui.refinedShards": "精炼碎片",
-            "ui.officialApiLastRefresh": "官方 API • 上次刷新：{age}",
-            "ui.officialApiLastRefreshDash": "官方 API - 上次刷新：{age}",
-            "ui.mooketUpdated": "Mooket 已更新：{time}{proxy}",
+            "ui.officialApiRefreshed": "官方 API 已检查新数据{proxy}。",
+            "ui.mooketApiRefreshed": "Mooket API 已检查新数据。",
+            "ui.officialApiLastRefresh": "官方 API • 数据更新于：{age}",
+            "ui.officialApiLastRefreshDash": "官方 API - 数据更新于：{age}",
+            "ui.mooketUpdated": "Mooket 数据更新于：{time}{proxy}",
+            "ui.apiDataUpdatedLine": "{source} API • 数据更新于：{age}",
+            "ui.apiDataUpdatedTitle": "{source} API • 数据更新于：{age}",
+            "ui.refreshApiPricesTip": "检查 {source} API 是否有新数据",
+            "ui.checkedStamp": "上次检查：{time}",
             "ui.runSummary": "通关时间：{clear} - 增益：{buff}",
             "ui.runClearFmt": "{value} 分钟",
             "ui.runBuffFmt": "{value}/20",
@@ -677,7 +720,7 @@
             "ui.buffMustRange": "战斗增益必须在 0-20。",
             "ui.playerInfoRequired": "玩家信息必填（增益 0-20，通关时间）。",
             "ui.calculationFailedConsole": "计算失败（见控制台）。",
-            "ui.clearedInputsResetManualOfficial": "已清空输入，并将手动钥匙价格重置为官方 API。",
+            "ui.clearedInputsResetManualOfficial": "已清空输入，并将手动钥匙价格重置为当前 API。",
             "ui.scrollUpAgainReturn": "再次上滑可返回首页。",
             "ui.bestValue": "最佳价值",
             "ui.best": "最佳",
@@ -691,6 +734,7 @@
             "ui.keysFragmentsNeeded": "需要的碎片",
             "ui.keysMaterialsNeeded": "需要的材料",
             "ui.keysTotalCost": "总成本",
+            "ui.keysTotalForBudget": "你的预算可做的总钥匙数",
             "ui.keysKeysProduced": "宝箱钥匙",
             "ui.keysCraftRuns": "制作次数",
             "ui.reset": "重置",
@@ -700,6 +744,8 @@
             "ui.keysAutoPrice": "自动",
             "ui.keysManualPrice": "手动价格输入",
             "ui.keysEachPrice": "@ {price} /个",
+            "ui.keysBankPlaceholder": "当前金币",
+            "ui.keysEstimateArtisanHelp": "启用 Artisan 时为估算值",
             "ui.artisan": "工匠",
             "ui.guzzlingPouchLevel": "畅饮袋等级",
             "ui.artisanCost": "工匠成本",
@@ -757,6 +803,10 @@
             "ui.coreModulesNotLoaded": "核心模块未加载",
             "ui.deltaSumEv": "Δ（总和 - EV）：",
             "ui.developerPanel": "开发者面板",
+            "ui.activeApi": "当前 API",
+            "ui.differentOnly": "仅看差异",
+            "ui.allItems": "所有物品",
+            "ui.apiPriceCompare": "API 价格对比",
             "ui.entryKeyAskBid": "入场钥匙（卖一/买一）：",
             "ui.evCalculationFailed": "EV 计算失败。",
             "ui.evCalculationFailedZone": "该区域 EV 计算失败。",
@@ -813,11 +863,13 @@
             "ui.tipStandardExplained": "标准视图：{value} | 即时卖出按买一，钥匙按买一",
             "ui.tipStandard": "标准：{value}",
             "ui.trace": "追踪",
+            "ui.tokenShopPricingItems": "代币商店定价物品",
             "ui.unableComputeEv": "无法计算 EV。",
             "ui.unknownRefreshState": "未知刷新状态。",
             "ui.value": "数值",
             "ui.zone": "区域",
             "ui.zoneComparisonFailed": "区域比较计算失败。",
+            "ui.zoneComparePricingItems": "区域对比宝箱物品",
             "ui.zoneMissingDataCount": " 有 {count} 个区域缺少数据。",
             "ui.zoneSelector": "区域选择器",
             "ui.zoneView": "区域视图：",
@@ -971,7 +1023,7 @@
             "ui.entryPricePlaceholder": "例如 600k",
             "ui.chestPricePlaceholder": "例如 6m",
             "ui.enterValueLike": "請輸入例如 600k 或 6m。",
-            "ui.lastRefresh": "上次刷新",
+            "ui.lastRefresh": "上次檢查",
             "ui.usesOfficialEndpoint": "使用官方定價端點。",
             "ui.refreshNow": "立即刷新",
             "ui.instant": "即買",
@@ -986,7 +1038,7 @@
             "ui.overrideDropValues": "覆蓋 EV 計算使用的特定掉落值。",
             "ui.filterItems": "篩選物品",
             "ui.typeToSearch": "輸入以搜尋...",
-            "ui.officialApiPrices": "官方 API 價格",
+            "ui.officialApiPrices": "目前 API 價格",
             "ui.resetLootPrices": "重置掉落價格",
             "ui.lootHintDefault": "顯示的是目前市場價格（佔位）。輸入數值可覆蓋，留白則使用市場價。",
             "ui.createdBy": "建立者",
@@ -1009,9 +1061,15 @@
             "ui.market": "市場",
             "ui.mixed": "混合",
             "ui.refinedShards": "精煉碎片",
-            "ui.officialApiLastRefresh": "官方 API • 上次刷新：{age}",
-            "ui.officialApiLastRefreshDash": "官方 API - 上次刷新：{age}",
-            "ui.mooketUpdated": "Mooket 已更新：{time}{proxy}",
+            "ui.officialApiRefreshed": "官方 API 已檢查新資料{proxy}。",
+            "ui.mooketApiRefreshed": "Mooket API 已檢查新資料。",
+            "ui.officialApiLastRefresh": "官方 API • 資料更新於：{age}",
+            "ui.officialApiLastRefreshDash": "官方 API - 資料更新於：{age}",
+            "ui.mooketUpdated": "Mooket 資料更新於：{time}{proxy}",
+            "ui.apiDataUpdatedLine": "{source} API • 資料更新於：{age}",
+            "ui.apiDataUpdatedTitle": "{source} API • 資料更新於：{age}",
+            "ui.refreshApiPricesTip": "檢查 {source} API 是否有新資料",
+            "ui.checkedStamp": "上次檢查：{time}",
             "ui.runSummary": "通關時間：{clear} - 增益：{buff}",
             "ui.runClearFmt": "{value} 分鐘",
             "ui.runBuffFmt": "{value}/20",
@@ -1029,7 +1087,7 @@
             "ui.buffMustRange": "戰鬥增益必須在 0-20。",
             "ui.playerInfoRequired": "玩家資訊必填（增益 0-20、通關時間）。",
             "ui.calculationFailedConsole": "計算失敗（請看主控台）。",
-            "ui.clearedInputsResetManualOfficial": "已清空輸入，並將手動鑰匙價格重置為官方 API。",
+            "ui.clearedInputsResetManualOfficial": "已清空輸入，並將手動鑰匙價格重置為目前 API。",
             "ui.scrollUpAgainReturn": "再往上滑一次可返回首頁。",
             "ui.bestValue": "最佳價值",
             "ui.best": "最佳",
@@ -1043,6 +1101,7 @@
             "ui.keysFragmentsNeeded": "需要的碎片",
             "ui.keysMaterialsNeeded": "需要的材料",
             "ui.keysTotalCost": "總成本",
+            "ui.keysTotalForBudget": "你的預算可做的總鑰匙數",
             "ui.keysKeysProduced": "寶箱鑰匙",
             "ui.keysCraftRuns": "製作次數",
             "ui.reset": "重設",
@@ -1052,6 +1111,8 @@
             "ui.keysAutoPrice": "自動",
             "ui.keysManualPrice": "手動價格輸入",
             "ui.keysEachPrice": "@ {price} /個",
+            "ui.keysBankPlaceholder": "目前金幣",
+            "ui.keysEstimateArtisanHelp": "啟用 Artisan 時為估算值",
             "ui.artisan": "工匠",
             "ui.guzzlingPouchLevel": "暢飲袋等級",
             "ui.artisanCost": "工匠成本",
@@ -1109,6 +1170,10 @@
             "ui.coreModulesNotLoaded": "核心模組未載入",
             "ui.deltaSumEv": "Δ（總和 - EV）：",
             "ui.developerPanel": "開發者面板",
+            "ui.activeApi": "目前 API",
+            "ui.differentOnly": "只看差異",
+            "ui.allItems": "所有物品",
+            "ui.apiPriceCompare": "API 價格比較",
             "ui.entryKeyAskBid": "入場鑰匙（賣一/買一）：",
             "ui.evCalculationFailed": "EV 計算失敗。",
             "ui.evCalculationFailedZone": "此區域 EV 計算失敗。",
@@ -1165,11 +1230,13 @@
             "ui.tipStandardExplained": "標準視圖：{value} | 即時賣出按買一，鑰匙按買一",
             "ui.tipStandard": "標準：{value}",
             "ui.trace": "追蹤",
+            "ui.tokenShopPricingItems": "代幣商店定價物品",
             "ui.unableComputeEv": "無法計算 EV。",
             "ui.unknownRefreshState": "未知刷新狀態。",
             "ui.value": "數值",
             "ui.zone": "區域",
             "ui.zoneComparisonFailed": "區域比較計算失敗。",
+            "ui.zoneComparePricingItems": "區域比較寶箱物品",
             "ui.zoneMissingDataCount": " 有 {count} 個區域缺少資料。",
             "ui.zoneSelector": "區域選擇器",
             "ui.zoneView": "區域視圖：",
@@ -1630,6 +1697,19 @@
         return raw;
     }
 
+    function canonicalizeSharedLootStateMap(map) {
+        if (!map || typeof map !== "object") return map;
+        if (!map[SHARED_LOOT_OVERRIDE_ENABLED_KEY] && map[LEGACY_ZONE_MANUAL_LOOT_KEY] === "1") {
+            map[SHARED_LOOT_OVERRIDE_ENABLED_KEY] = "1";
+        }
+        if (!map[SHARED_LOOT_PRICE_OVERRIDES_KEY] && map[LEGACY_ZONE_MANUAL_OVERRIDES_KEY]) {
+            map[SHARED_LOOT_PRICE_OVERRIDES_KEY] = map[LEGACY_ZONE_MANUAL_OVERRIDES_KEY];
+        }
+        delete map[LEGACY_ZONE_MANUAL_LOOT_KEY];
+        delete map[LEGACY_ZONE_MANUAL_OVERRIDES_KEY];
+        return map;
+    }
+
     function sanitizeStateMap(raw) {
         const out = {};
         if (!raw || typeof raw !== "object") return out;
@@ -1640,7 +1720,7 @@
             if (safeValue == null || safeValue === "") return;
             out[key] = safeValue;
         });
-        return out;
+        return canonicalizeSharedLootStateMap(out);
     }
 
     function hasStateData(rawMap) {
@@ -1678,7 +1758,7 @@
             if (value == null || value === "") return;
             out[key] = String(value);
         });
-        return out;
+        return sanitizeStateMap(out);
     }
 
     function applyStateMap(rawMap) {
@@ -2735,7 +2815,6 @@
         if (rawMap["dungeon.advancedMode"] === "1") flags |= SHARE_FLAG_ADVANCED;
         if (rawMap["dungeon.lootOverrideEnabled"] === "1") flags |= SHARE_FLAG_LOOT_OVERRIDE;
         if (rawMap["dungeon.zoneCompare.removeLowDrops.v3"] === "1") flags |= SHARE_FLAG_LOW_DROP;
-        if (rawMap["dungeon.zoneCompare.manualLoot.v1"] === "1") flags |= SHARE_FLAG_ZONE_MANUAL_LOOT;
         if (rawMap["dungeon.zoneCompare.mirrorBackslot.v1"] === "1") flags |= SHARE_FLAG_MIRROR_BACKSLOT;
         if (rawMap["dungeon.rangeEnabled"] === "1") flags |= SHARE_FLAG_RANGE_ENABLED;
         return flags;
@@ -2756,7 +2835,6 @@
         const lootCounts = packDenseLootCounts(map["dungeon.lootCounts"]);
         const lootOverrides = packFlatLootOverrideMap(map["dungeon.lootPriceOverrides"]);
         const zoneMinutes = packSparseTierMinutes(map["dungeon.zoneCompare.minutes.v3"]);
-        const zoneOverrides = packFlatNumericHridMap(map["dungeon.zoneCompare.manualOverrides.v1"]);
         const foodByContext = packSparseContextStrings(map["dungeon.foodPerDayByContext.v1"]);
         const manualInputs = packManualInputs(map["dungeon.manualInputs"]);
         const runInputs = packRunInputs(map["dungeon.runInputs"]);
@@ -2776,7 +2854,6 @@
             !isPackedValueEmpty(lootCounts) ? lootCounts : "",
             !isPackedValueEmpty(lootOverrides) ? lootOverrides : "",
             !isPackedValueEmpty(zoneMinutes) ? zoneMinutes : "",
-            !isPackedValueEmpty(zoneOverrides) ? zoneOverrides : "",
             !isPackedValueEmpty(foodByContext) ? foodByContext : "",
             !isPackedValueEmpty(manualInputs) ? manualInputs : "",
             !isPackedValueEmpty(runInputs) ? runInputs : "",
@@ -2799,7 +2876,9 @@
         const lootCounts = unpackDenseLootCounts(payload[indexMap.x]);
         const lootOverrides = unpackFlatLootOverrideMap(payload[indexMap.l]);
         const zoneMinutes = unpackSparseTierMinutes(payload[indexMap.z]);
-        const zoneOverrides = unpackFlatNumericHridMap(payload[indexMap.o]);
+        const zoneOverrides = indexMap.o != null
+            ? unpackFlatNumericHridMap(payload[indexMap.o])
+            : {};
         const foodByContext = unpackSparseContextStrings(payload[indexMap.fc]);
         const manualInputs = unpackManualInputs(payload[indexMap.u]);
         const runInputs = unpackRunInputs(payload[indexMap.r]);
@@ -2847,8 +2926,13 @@
         return unpackPackedSharePayloadCommon(payload, SHARE_PAYLOAD_INDEX_V8);
     }
 
+    function unpackPackedSharePayloadV9(payload) {
+        if (!Array.isArray(payload) || Number(payload[SHARE_PAYLOAD_INDEX_V9.v]) !== 9) return null;
+        return unpackPackedSharePayloadCommon(payload, SHARE_PAYLOAD_INDEX_V9);
+    }
+
     function unpackPackedSharePayload(payload) {
-        return unpackPackedSharePayloadV8(payload) || unpackPackedSharePayloadV7(payload) || unpackPackedSharePayloadV6(payload);
+        return unpackPackedSharePayloadV9(payload) || unpackPackedSharePayloadV8(payload) || unpackPackedSharePayloadV7(payload) || unpackPackedSharePayloadV6(payload);
     }
 
     function encodeHashSharePayload(payload) {
@@ -3281,6 +3365,7 @@
         setTextBySelector("#manualChestErr", tt("ui.enterValueLike", "Enter a value like 600k or 6m."));
         setTextBySelector('[data-choice="official"] .choiceName', tt("ui.officialApi", "Official API"));
         setTextBySelector('[data-choice="official"] .choiceDesc', tt("ui.usesOfficialEndpoint", "Uses the official pricing endpoint."));
+        setLabelPrefix('[data-choice="official"] .choiceTag', `${tt("ui.lastRefresh", "Last checked")}: `);
         setTextBySelector("#officialRefreshBtn", tt("ui.refreshNow", "Refresh now"));
         setTextBySelector('[data-choice="other"] .choiceName', tt("ui.otherApi", "Mooket API"));
         setTextBySelector('[data-choice="other"] .choiceTag', tt("ui.alt", "Alt"));
@@ -3301,7 +3386,7 @@
         setTextBySelector('label[for="lootOverrideFilter"]', tt("ui.filterItems", "Filter items"));
         setAttrBySelector("#lootOverrideFilter", "placeholder", tt("ui.typeToSearch", "Type to search..."));
         setTextBySelector("#lootOverrideResetBtn", tt("ui.resetLootPrices", "Reset Loot Prices"));
-        setTipBySelector("#lootOverrideResetBtn", tt("ui.officialApiPrices", "Official API Prices"));
+        setTipBySelector("#lootOverrideResetBtn", tt("ui.officialApiPrices", "Current API Prices"));
         setTextBySelector("#simulateBtn span", tt("ui.calculate", "Calculate"));
 
         setTextBySelector("#advResultsCard .simpleTitle", tt("ui.results", "Results"));

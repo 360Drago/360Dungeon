@@ -9,10 +9,14 @@
     buff: "dungeon.zoneCompare.buff.v3",
     food: "dungeon.zoneCompare.food.v3",
     lowDrop: "dungeon.zoneCompare.removeLowDrops.v3",
-    manualLoot: "dungeon.zoneCompare.manualLoot.v1",
-    manualOverrides: "dungeon.zoneCompare.manualOverrides.v1",
     mirrorBackslot: "dungeon.zoneCompare.mirrorBackslot.v1",
   };
+  const LEGACY_LOOT_STORAGE = {
+    manualLoot: "dungeon.zoneCompare.manualLoot.v1",
+    manualOverrides: "dungeon.zoneCompare.manualOverrides.v1",
+  };
+  const SHARED_LOOT_OVERRIDE_ENABLED_KEY = "dungeon.lootOverrideEnabled";
+  const SHARED_LOOT_PRICE_OVERRIDES_KEY = "dungeon.lootPriceOverrides";
   const SHARED_FOOD_KEY = "dungeon.foodPerDay";
   const MIRROR_HRID = "/items/mirror_of_protection";
   const BACKSLOT_HRIDS = [
@@ -152,6 +156,94 @@
     return String(v == null ? "" : v).trim();
   }
 
+  function normalizeLootOverrideEntry(raw) {
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric) && numeric >= 0) return Math.round(numeric);
+    if (!raw || typeof raw !== "object") return null;
+    const mode = asText(raw.mode).toLowerCase();
+    if (mode === "bid") return { mode: "Bid" };
+    if (mode === "ask") return { mode: "Ask" };
+    if (mode === "custom") {
+      const price = Number(raw.price);
+      if (Number.isFinite(price) && price >= 0) return { mode: "Custom", price: Math.round(price) };
+    }
+    return null;
+  }
+
+  function normalizeLootOverrideMap(raw) {
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    for (const [hrid, value] of Object.entries(raw)) {
+      const key = asText(hrid);
+      if (!key) continue;
+      const normalized = normalizeLootOverrideEntry(value);
+      if (normalized != null) out[key] = normalized;
+    }
+    return out;
+  }
+
+  function getCustomLootOverrideValue(raw) {
+    const normalized = normalizeLootOverrideEntry(raw);
+    if (typeof normalized === "number") return normalized;
+    if (normalized && typeof normalized === "object" && asText(normalized.mode).toLowerCase() === "custom") {
+      const price = Number(normalized.price);
+      if (Number.isFinite(price) && price >= 0) return Math.round(price);
+    }
+    return NaN;
+  }
+
+  function loadSharedLootOverrideState() {
+    const sharedEnabledRaw = storageGet(SHARED_LOOT_OVERRIDE_ENABLED_KEY);
+    const sharedOverridesRawText = storageGet(SHARED_LOOT_PRICE_OVERRIDES_KEY);
+    const sharedOverrides = normalizeLootOverrideMap(parseJSON(sharedOverridesRawText, null));
+    const hasSharedState = sharedEnabledRaw != null || (sharedOverridesRawText != null && asText(sharedOverridesRawText) !== "");
+    if (hasSharedState) {
+      return {
+        manualLoot: sharedEnabledRaw === "1",
+        manualOverrides: sharedOverrides,
+      };
+    }
+
+    const legacyEnabled = storageGet(LEGACY_LOOT_STORAGE.manualLoot) === "1";
+    const legacyOverrides = normalizeLootOverrideMap(parseJSON(storageGet(LEGACY_LOOT_STORAGE.manualOverrides), null));
+    if (legacyEnabled || Object.keys(legacyOverrides).length) {
+      try {
+        storageSet(SHARED_LOOT_OVERRIDE_ENABLED_KEY, legacyEnabled ? "1" : "0");
+        storageSet(SHARED_LOOT_PRICE_OVERRIDES_KEY, JSON.stringify(legacyOverrides));
+      } catch (_) { }
+    }
+    return {
+      manualLoot: legacyEnabled,
+      manualOverrides: legacyOverrides,
+    };
+  }
+
+  function persistSharedLootOverrideState() {
+    const normalized = normalizeLootOverrideMap(state.manualOverrides || {});
+    state.manualOverrides = normalized;
+    storageSet(SHARED_LOOT_OVERRIDE_ENABLED_KEY, state.manualLoot ? "1" : "0");
+    storageSet(SHARED_LOOT_PRICE_OVERRIDES_KEY, JSON.stringify(normalized));
+  }
+
+  function syncLocalLootOverrideState() {
+    const sharedState = loadSharedLootOverrideState();
+    state.manualLoot = !!sharedState.manualLoot;
+    state.manualOverrides = sharedState.manualOverrides || {};
+    return sharedState;
+  }
+
+  function dispatchLootOverrideStateChanged() {
+    try {
+      document.dispatchEvent(new CustomEvent("dungeon:loot-overrides-changed", {
+        detail: {
+          enabled: !!state.manualLoot,
+          overrides: normalizeLootOverrideMap(state.manualOverrides || {}),
+          source: "zone-compare",
+        },
+      }));
+    } catch (_) { }
+  }
+
   function clampBuff(v) {
     const n = Number(v);
     if (!Number.isFinite(n)) return 20;
@@ -176,14 +268,7 @@
   }
 
   function loadState() {
-    const rawOverrides = parseJSON(storageGet(STORAGE.manualOverrides), {});
-    const manualOverrides = {};
-    if (rawOverrides && typeof rawOverrides === "object") {
-      for (const k of Object.keys(rawOverrides)) {
-        const n = Number(rawOverrides[k]);
-        if (Number.isFinite(n) && n >= 0) manualOverrides[k] = n;
-      }
-    }
+    const sharedLootState = loadSharedLootOverrideState();
     const rawBuff = storageGet(STORAGE.buff);
     const buffDefaulted = (rawBuff == null || asText(rawBuff) === "") ? 20 : clampBuff(rawBuff);
     const rawFoodShared = storageGet(SHARED_FOOD_KEY);
@@ -197,23 +282,24 @@
       buff: buffDefaulted,
       food: foodNormalized,
       lowDrop: storageGet(STORAGE.lowDrop) === "1",
-      manualLoot: storageGet(STORAGE.manualLoot) === "1",
-      manualOverrides,
+      manualLoot: !!sharedLootState.manualLoot,
+      manualOverrides: sharedLootState.manualOverrides || {},
       mirrorBackslot: storageGet(STORAGE.mirrorBackslot) === "1",
     };
   }
 
-  function persistState() {
+  function persistState(opts = {}) {
+    const { emitLootOverrides = false } = opts || {};
     try {
       storageSet(STORAGE.minutes, JSON.stringify(state.minutes || {}));
       storageSet(STORAGE.buff, String(clampBuff(state.buff)));
       storageSet(STORAGE.food, asText(state.food || ""));
       storageSet(SHARED_FOOD_KEY, asText(state.food || ""));
       storageSet(STORAGE.lowDrop, state.lowDrop ? "1" : "0");
-      storageSet(STORAGE.manualLoot, state.manualLoot ? "1" : "0");
-      storageSet(STORAGE.manualOverrides, JSON.stringify(state.manualOverrides || {}));
+      persistSharedLootOverrideState();
       storageSet(STORAGE.mirrorBackslot, state.mirrorBackslot ? "1" : "0");
     } catch (_) { }
+    if (emitLootOverrides) dispatchLootOverrideStateChanged();
   }
 
   function ensureZoneState(zoneKey) {
@@ -393,7 +479,16 @@
       #zoneCompareInline .zcAct .miniBtn.zcResetArmed { border-color:rgba(248,113,113,.8); color:#fecaca; background:rgba(127,29,29,.25); font-size:11px; letter-spacing:.01em; transform:scale(.97); transform-origin:center; }
       #zoneCompareInline .zcStatus { margin-top:8px; }
       #zoneCompareInline .zcStatus.zcError { color:#ef4444; }
-      #zoneCompareInline .lootOverrideSection { max-width:1100px; margin:10px auto 0; }
+      #zoneCompareInline .lootOverrideSection {
+        max-width:1100px;
+        margin:14px auto 0;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,.015) 100%);
+        border:1px solid rgba(255,255,255,.10);
+        border-radius:18px;
+        box-shadow:0 10px 30px rgba(0,0,0,.18);
+        padding:14px 16px;
+      }
       #zoneCompareInline .lootOverrideSection .row { margin-top:10px; }
       #zoneCompareInline .lootOverrideSection > .row.spread:first-child { margin-top:0; }
       #zoneCompareInline .lootOverrideFilterField { flex:1 1 420px; min-width:220px; margin-top:0; }
@@ -450,6 +545,11 @@
       html[data-theme="light"] #zoneCompareInline .zcCard { background:var(--surface-elev-1); border-color:var(--card-border-color); }
       html[data-theme="light"] #zoneCompareInline .zcAfter, html[data-theme="light"] #zoneCompareInline .zcTier { border-color:var(--neutral-border); }
       html[data-theme="light"] #zoneCompareInline .zcPill { background:rgba(255,255,255,.6); border-color:var(--neutral-border); }
+      html[data-theme="light"] #zoneCompareInline .lootOverrideSection {
+        background:rgba(255,255,255,.74);
+        border-color:var(--card-border-color);
+        box-shadow:0 10px 24px rgba(59,66,82,.08);
+      }
       html[data-theme="light"] #zoneCompareInline .zcLine, html[data-theme="light"] #zoneCompareInline .zcAfter p, html[data-theme="light"] #zoneCompareInline .zcTierHead, html[data-theme="light"] #zoneCompareInline .zcLabel, html[data-theme="light"] #zoneCompareInline .zcInfo { color:rgba(31,41,55,.82); }
       html[data-theme="light"] #zoneCompareInline .zcLine span:last-child, html[data-theme="light"] #zoneCompareInline .zcProfit { color:rgba(31,41,55,.96); }
       html[data-theme="light"] #zoneCompareInline .zcRangeSep { color:rgba(31,41,55,.65); }
@@ -587,7 +687,7 @@
               <label for="zcManualLootFilter">${t("ui.filterItems", "Filter items")}</label>
               <input id="zcManualLootFilter" type="text" inputmode="search" placeholder="${t("ui.typeToSearch", "Type to search...")}" />
             </div>
-            <button class="ghostBtn tipHost" type="button" id="zcLootOverrideResetBtn" data-tip="${t("ui.officialApiPrices", "Official API Prices")}">${t("ui.resetLootPrices", "Reset Loot Prices")}</button>
+            <button class="ghostBtn tipHost" type="button" id="zcLootOverrideResetBtn" data-tip="${t("ui.officialApiPrices", "Current API Prices")}">${t("ui.resetLootPrices", "Reset Loot Prices")}</button>
           </div>
           <div class="fieldHint muted small" id="zcLootOverrideHint">
             ${t("ui.pricesShownMarket", "Prices shown are current market values (placeholder). Enter a value to override. Leave blank to use the market.")}
@@ -1030,7 +1130,7 @@
       if (!id) continue;
       if (id === "/items/coin") continue;
       if (id.endsWith("_token")) continue;
-      const ov = Number(effectiveOverrides?.[hrid]);
+      const ov = getCustomLootOverrideValue(effectiveOverrides?.[hrid]);
       if (Number.isFinite(ov) && ov >= 0) continue;
       const row = marketData?.[hrid] || null;
       const ask = row?.a ?? row?.ask;
@@ -1096,6 +1196,7 @@
     const hint = byId("zcLootOverrideHint");
     const list = byId("zcLootOverrideList");
     if (!section || !toggle || !filter || !resetBtn || !hint || !list) return;
+    syncLocalLootOverrideState();
 
     toggle.checked = !!state.manualLoot;
     section.classList.toggle("isOn", !!state.manualLoot);
@@ -1130,8 +1231,8 @@
     }
 
     list.innerHTML = filtered.map((r) => {
-      const hasCustom = Number.isFinite(Number(state.manualOverrides?.[r.hrid]));
-      const custom = hasCustom ? Number(state.manualOverrides[r.hrid]) : NaN;
+      const custom = getCustomLootOverrideValue(state.manualOverrides?.[r.hrid]);
+      const hasCustom = Number.isFinite(custom);
       const cls = hasCustom ? "lootOverrideRow isCustom" : "lootOverrideRow isDefault";
       return `
         <div class="${cls}" data-hrid="${escAttr(r.hrid)}">
@@ -1155,7 +1256,7 @@
           delete state.manualOverrides[hrid];
           rowEl.classList.remove("isCustom", "isInvalid");
           rowEl.classList.add("isDefault");
-          persistState();
+          persistState({ emitLootOverrides: true });
           return;
         }
         const n = parseCompact(raw);
@@ -1165,9 +1266,9 @@
         }
         rowEl.classList.remove("isInvalid", "isDefault");
         rowEl.classList.add("isCustom");
-        state.manualOverrides[hrid] = Math.round(n);
+        state.manualOverrides[hrid] = { mode: "Custom", price: Math.round(n) };
         input.value = fmtCoins(n);
-        persistState();
+        persistState({ emitLootOverrides: true });
       };
 
       input.addEventListener("blur", commit);
@@ -1177,14 +1278,14 @@
         commit();
       });
 
-      if (resetOne) {
-        resetOne.addEventListener("click", (e) => {
-          e.preventDefault();
-          delete state.manualOverrides[hrid];
-          persistState();
-          void renderManualPanel(zones, source);
-        });
-      }
+        if (resetOne) {
+          resetOne.addEventListener("click", (e) => {
+            e.preventDefault();
+            delete state.manualOverrides[hrid];
+            persistState({ emitLootOverrides: true });
+            void renderManualPanel(zones, source);
+          });
+        }
     });
   }
 
@@ -1457,7 +1558,7 @@
     btn.textContent = t("ui.calculating", "Calculating...");
 
     try {
-      const source = String(api.getPricingModel?.() || "official");
+      const source = String(api.getActiveApiSource?.() || api.getPricingModel?.() || "official");
       const tRate = taxRate();
       const food = parseFood(state.food);
       const foodPerDay = Number.isFinite(food) ? food : 0;
@@ -1478,9 +1579,8 @@
       if (token !== calcRunToken) return;
 
       setStatus(t("ui.calculatingTierComparisons", "Calculating 12 tier comparisons..."));
-      const globalOverrides = api.getActiveLootOverrides?.() || null;
-      const manualMap = state.manualLoot ? (state.manualOverrides || null) : null;
-      const baseOverrides = state.manualLoot ? mergeOverrides(globalOverrides, manualMap) : null;
+      const sharedLootState = syncLocalLootOverrideState();
+      const baseOverrides = sharedLootState.manualLoot ? (sharedLootState.manualOverrides || null) : null;
 
       let tierCount = 0;
       let zoneErrors = 0;
@@ -1599,7 +1699,7 @@
     if (mirrorEl) mirrorEl.checked = false;
     const manualEl = byId("zcManualLootToggle");
     if (manualEl) manualEl.checked = false;
-    persistState();
+    persistState({ emitLootOverrides: true });
     renderApiWarnings([]);
     if (source) void renderManualPanel(zones, source);
     setStatus(t("ui.clearedZoneCompareInputs", "Cleared zone compare inputs."));
@@ -1617,7 +1717,7 @@
     const warnToggle = byId("zcWarnToggle");
     const calc = byId("zcCalc");
     const reset = byId("zcReset");
-    const source = String((window.DungeonAPI?.getPricingModel?.() || "official"));
+    const source = String((window.DungeonAPI?.getActiveApiSource?.() || window.DungeonAPI?.getPricingModel?.() || "official"));
     bindInfoTipInteractions(panel);
     const zoneIndexByKey = new Map(zones.map((z, i) => [z.key, i]));
     const tierIndexByKey = new Map(TIERS.map((t, i) => [t, i]));
@@ -1685,7 +1785,7 @@
     if (manual) {
       manual.addEventListener("change", () => {
         state.manualLoot = !!manual.checked;
-        persistState();
+        persistState({ emitLootOverrides: true });
         void renderManualPanel(zones, source);
       });
     }
@@ -1697,9 +1797,14 @@
     }
 
     if (manualReset) {
-      manualReset.addEventListener("click", () => {
-        state.manualOverrides = {};
-        persistState();
+      manualReset.addEventListener("click", async () => {
+        const rows = await buildManualLootRows(zones, source);
+        const toClear = rows
+          .map((row) => asText(row?.hrid))
+          .filter((hrid) => hrid.startsWith("/items/"));
+        if (!toClear.length) return;
+        toClear.forEach((hrid) => { delete state.manualOverrides[hrid]; });
+        persistState({ emitLootOverrides: true });
         void renderManualPanel(zones, source);
         setStatus(t("ui.manualLootOverridesReset", "Manual loot overrides reset to market prices."));
       });
@@ -1770,7 +1875,7 @@
         const manualEl = byId("zcManualLootToggle");
         if (manualEl) manualEl.checked = false;
 
-        persistState();
+        persistState({ emitLootOverrides: true });
         void renderManualPanel(zones, source);
       };
       const clearResetArm = () => {
@@ -1813,7 +1918,7 @@
     }
 
     // Re-hydrate from shared storage so quick/advanced edits are reflected when entering Zone Compare.
-    state = loadState();
+      state = loadState();
 
     injectStyleOnce();
     const zones = readZones();
@@ -1827,11 +1932,36 @@
     window.requestAnimationFrame(() => syncZoneMinutePlaceholders(panel));
     bindEvents(zones);
     renderApiWarnings(apiWarnings);
-    const source = String((window.DungeonAPI?.getPricingModel?.() || "official"));
+    const source = String((window.DungeonAPI?.getActiveApiSource?.() || window.DungeonAPI?.getPricingModel?.() || "official"));
     await renderManualPanel(zones, source);
     try {
       document.dispatchEvent(new CustomEvent("zone-compare:rendered"));
     } catch (_) { }
+  }
+
+  async function getRelevantPricingHrids() {
+    const api = window.DungeonAPI || null;
+    const ev = window.DungeonChestEV || null;
+    if (!api || !ev?.getEvRelevantHrids) return [];
+    const source = String((api.getActiveApiSource?.() || api.getPricingModel?.() || "official"));
+    const zones = readZones();
+    const hrids = new Set();
+    for (const zone of zones) {
+      const market = api.getMarketSlim?.(zone.key, source) || null;
+      let relevant = [];
+      try {
+        relevant = await ev.getEvRelevantHrids(zone.key, market);
+      } catch (_) {
+        relevant = [];
+      }
+      (relevant || []).forEach((hrid) => {
+        const text = String(hrid || "").trim();
+        if (!text || text === "/items/coin") return;
+        if (text.toLowerCase().endsWith("_token")) return;
+        hrids.add(text);
+      });
+    }
+    return Array.from(hrids);
   }
 
   function bind() {
@@ -1860,6 +1990,7 @@
     window.ZoneCompareInline = {
       render,
       isActive: () => !!toggle.checked,
+      getRelevantPricingHrids,
     };
   }
 

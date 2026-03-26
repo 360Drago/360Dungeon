@@ -203,8 +203,12 @@
       }
       #tokenShopInline .tsDetailShell {
         margin-top: 18px;
-        padding-top: 18px;
-        border-top: 1px solid rgba(255,255,255,.12);
+        padding: 16px 18px 18px;
+        border: 1px solid rgba(255,255,255,.10);
+        border-radius: 18px;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.015) 100%);
+        box-shadow: 0 10px 30px rgba(0,0,0,.18);
       }
       #tokenShopInline .tokenTable { border-collapse: collapse; }
       #tokenShopInline .tokenTable th { white-space: nowrap; }
@@ -303,6 +307,11 @@
       html[data-theme="light"] #tokenShopInline .tsZoneBody {
         border-color: rgba(59,66,82,0.10);
         background: rgba(255,255,255,0.34);
+      }
+      html[data-theme="light"] #tokenShopInline .tsDetailShell {
+        border-color: rgba(59,66,82,0.12);
+        background: rgba(255,255,255,0.72);
+        box-shadow: 0 10px 24px rgba(59,66,82,0.08);
       }
       html[data-theme="light"] #tokenShopInline .tsZoneRow {
         border-bottom-color: rgba(59,66,82,0.08);
@@ -600,8 +609,8 @@
       </div>`;
   }
 
-  function refreshKey(pricingModel, uiKey) {
-    return `dungeon.market.lastRefreshTs.${String(pricingModel || "official").toLowerCase()}.${String(uiKey || "unknown")}`;
+  function refreshKey(apiSource, uiKey) {
+    return `dungeon.market.lastRefreshTs.${String(apiSource || "official").toLowerCase()}.${String(uiKey || "unknown")}`;
   }
 
   function writeRefreshTimestampForEvent(dungeonKey, apiSource, ts) {
@@ -634,11 +643,11 @@
     });
   }
 
-  function requestRefresh(pricingModel) {
-    const model = String(pricingModel || "official").toLowerCase();
+  function requestRefresh(apiSource) {
+    const model = String(apiSource || "official").toLowerCase();
     const map = {
       official: ["simpleOfficialRefreshBtn", "officialRefreshBtn"],
-      other: ["otherRefreshBtn"],
+      other: ["simpleOfficialRefreshBtn", "otherRefreshBtn"],
     };
     const ids = map[model] || map.official;
     for (const id of ids) {
@@ -655,15 +664,15 @@
     hideAndClearElement(panelEl);
   }
 
-  async function requestAllRefresh(pricingModel) {
+  async function requestAllRefresh(apiSource) {
     const api = window.DungeonAPI || null;
     if (api && typeof api.refreshPricesForAllDungeons === "function") {
       try {
-        await api.refreshPricesForAllDungeons(pricingModel, { silent: true, reason: "token-shop" });
+        await api.refreshPricesForAllDungeons(apiSource, { silent: true, reason: "token-shop" });
         return true;
       } catch (_) { }
     }
-    return requestRefresh(pricingModel);
+    return requestRefresh(apiSource);
   }
 
   function buildTokenShopRows(rowsFromInit, marketSlim, short) {
@@ -679,12 +688,12 @@
     });
   }
 
-  async function buildZoneTokenData(zone, pricingModel) {
+  async function buildZoneTokenData(zone, apiSource) {
     const uiKey = zone.key;
     const short = shortForUi(uiKey);
     const rowsFromInit = await buildRowsFromInit(uiKey);
     const essenceHrid = short ? `/items/${short}_essence` : null;
-    const marketSlim = window.DungeonAPI?.getMarketSlim?.(uiKey, pricingModel) || null;
+    const marketSlim = window.DungeonAPI?.getMarketSlim?.(uiKey, apiSource) || null;
     const rows = buildTokenShopRows(rowsFromInit, marketSlim, short);
 
     const askVals = positiveMetricValues(rows, "askCpt", essenceHrid);
@@ -837,7 +846,7 @@
     });
   }
 
-  function renderDetailShell(panel, zoneData, pricingModel) {
+  function renderDetailShell(panel, zoneData, apiSource) {
     if (!panel) return;
     const shell = panel.querySelector(".tsDetailShell");
     if (!shell) return;
@@ -853,16 +862,24 @@
       shell.dataset.lockedMinHeight = String(stableHeight);
     }
     const ageSpan = shell.querySelector("#tokenShopRefreshAge");
-    const ageKey = refreshKey(pricingModel, zoneData?.uiKey || "");
+    const ageKey = refreshKey(apiSource, zoneData?.uiKey || "");
     if (ageSpan) startAgeTimer(ageSpan, ageKey);
     const refreshBtn = shell.querySelector("#tokenShopRefreshBtn");
-    if (refreshBtn) bindTokenShopRefreshButton(refreshBtn, pricingModel, ageSpan, ageKey);
+    if (refreshBtn) bindTokenShopRefreshButton(refreshBtn, apiSource, ageSpan, ageKey);
+    try {
+      document.dispatchEvent(new CustomEvent("token-shop:selection-changed", {
+        detail: {
+          uiKey: asText(zoneData?.uiKey || ""),
+          apiSource: asText(apiSource || ""),
+        },
+      }));
+    } catch (_) { }
   }
 
-  function bindTokenShopRefreshButton(refreshBtn, pricingModel, ageSpan, ageKey) {
+  function bindTokenShopRefreshButton(refreshBtn, apiSource, ageSpan, ageKey) {
     if (!refreshBtn) return;
     refreshBtn.addEventListener("click", async () => {
-      const ok = await requestAllRefresh(pricingModel);
+      const ok = await requestAllRefresh(apiSource);
       if (ok) {
         if (ageSpan) startAgeTimer(ageSpan, ageKey);
       } else {
@@ -911,27 +928,27 @@
 
     injectStyleOnce();
 
-    const pricingModel = window.DungeonAPI?.getPricingModel?.() || "official";
-    if (selectionOnly && lastRenderState && lastRenderState.pricingModel === pricingModel && panel.querySelector(".tsShell")) {
+    const apiSource = window.DungeonAPI?.getActiveApiSource?.() || window.DungeonAPI?.getPricingModel?.() || "official";
+    if (selectionOnly && lastRenderState && lastRenderState.apiSource === apiSource && panel.querySelector(".tsShell")) {
       const selectedData = resolveSelectedZoneData(lastRenderState.zoneDataList || [], requestedUiKey, { selectionOnly: true });
       if (selectedData) {
         updateZoneSelection(panel, selectedData.uiKey);
-        renderDetailShell(panel, selectedData, pricingModel);
+        renderDetailShell(panel, selectedData, apiSource);
         return;
       }
     }
 
-    const refreshSignature = `${String(pricingModel || "official").toLowerCase()}::token-shop`;
+    const refreshSignature = `${String(apiSource || "official").toLowerCase()}::token-shop`;
     if (refreshSignature !== lastAutoRefreshSignature) {
       lastAutoRefreshSignature = refreshSignature;
-      void requestAllRefresh(pricingModel).then((ok) => {
+      void requestAllRefresh(apiSource).then((ok) => {
         if (ok) window.setTimeout(() => { render({ suppressBump: true }); }, AUTO_REFRESH_RENDER_DELAY_MS);
       });
     }
     const zones = readZones();
-    const zoneDataList = await Promise.all(zones.map((zone) => buildZoneTokenData(zone, pricingModel)));
+    const zoneDataList = await Promise.all(zones.map((zone) => buildZoneTokenData(zone, apiSource)));
     const selectedData = resolveSelectedZoneData(zoneDataList, requestedUiKey, { selectionOnly });
-    lastRenderState = { pricingModel, zoneDataList };
+    lastRenderState = { apiSource, zoneDataList };
 
     panel.hidden = false;
     panel.innerHTML = `
@@ -941,7 +958,7 @@
       </div>
     `;
     panel.scrollLeft = 0;
-    renderDetailShell(panel, selectedData, pricingModel);
+    renderDetailShell(panel, selectedData, apiSource);
     panel.querySelectorAll("[data-token-zone]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const nextUiKey = asText(btn.getAttribute("data-token-zone"));
@@ -950,7 +967,7 @@
         if (!nextData) return;
         tokenShopSelectedUiKey = nextUiKey;
         updateZoneSelection(panel, nextUiKey);
-        renderDetailShell(panel, nextData, pricingModel);
+        renderDetailShell(panel, nextData, apiSource);
       });
     });
 
@@ -960,6 +977,15 @@
       panel.classList.add("bump");
       window.setTimeout(() => panel.classList.remove("bump"), 300);
     }
+  }
+
+  async function getRelevantPricingHrids(uiKey = "") {
+    const requestedUiKey = asText(uiKey || tokenShopSelectedUiKey || window.DungeonAPI?.getSelectedDungeon?.() || "");
+    if (!requestedUiKey) return [];
+    const rows = await buildRowsFromInit(requestedUiKey);
+    return rows
+      .map((row) => asText(row?.hrid))
+      .filter(Boolean);
   }
 
   function bind() {
@@ -1004,6 +1030,7 @@
     window.TokenShopInline = {
       render,
       isActive: () => !!toggle.checked,
+      getRelevantPricingHrids,
     };
   }
 

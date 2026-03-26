@@ -8,12 +8,18 @@
   let clicks = 0, timer = null;
   let devZoneDungeonKey = "";
   let devEvSide = "bid";
+  let devApiDiffFilter = "different";
+  let devApiCompareOpen = true;
+  let devChestBreakdownOpen = true;
+  let devRefreshTimer = 0;
   const ZC_STORAGE = {
     lowDrop: "dungeon.zoneCompare.removeLowDrops.v3",
-    manualLoot: "dungeon.zoneCompare.manualLoot.v1",
-    manualOverrides: "dungeon.zoneCompare.manualOverrides.v1",
+    legacyManualLoot: "dungeon.zoneCompare.manualLoot.v1",
+    legacyManualOverrides: "dungeon.zoneCompare.manualOverrides.v1",
     mirrorBackslot: "dungeon.zoneCompare.mirrorBackslot.v1",
   };
+  const SHARED_LOOT_OVERRIDE_ENABLED_KEY = "dungeon.lootOverrideEnabled";
+  const SHARED_LOOT_PRICE_OVERRIDES_KEY = "dungeon.lootPriceOverrides";
   const UI_TO_SHORT = {
     chimerical_den: "chimerical",
     sinister_circus: "sinister",
@@ -44,6 +50,10 @@
 
   function getPricingStateShared() {
     return getShared("DungeonPricingStateShared");
+  }
+
+  function getInitDataShared() {
+    return getShared("DungeonInitDataShared");
   }
 
   function getMetaShared() {
@@ -81,10 +91,32 @@
     return normalizeEvSide(side) === "ask" ? t("ui.ask", "ask") : t("ui.bid", "bid");
   }
 
-  function formatPricingModelLabel(model) {
+  function normalizeApiSource(source) {
+    const normalize = getPricingStateShared()?.normalizeApiSource;
+    if (typeof normalize === "function") return normalize(source);
+    return source === "other" ? "other" : "official";
+  }
+
+  function apiSourceLabel(source) {
+    return normalizeApiSource(source) === "other"
+      ? t("ui.mooket", "Mooket")
+      : t("ui.official", "Official");
+  }
+
+  function normalizeApiDiffFilter(filter) {
+    return filter === "all" ? "all" : "different";
+  }
+
+  function formatPricingModelLabel(model, activeApiSource = "official") {
     const shared = getPricingStateShared();
-    if (shared && typeof shared.pricingModelLabel === "function") return shared.pricingModelLabel(model);
-    if (model === "manual") return t("ui.manualPlusOfficial", "Manual + Official");
+    if (shared && typeof shared.pricingModelLabel === "function") {
+      return shared.pricingModelLabel(model, { activeApiSource: normalizeApiSource(activeApiSource) });
+    }
+    if (model === "manual") {
+      return normalizeApiSource(activeApiSource) === "other"
+        ? t("ui.manualPlusMooket", "Manual + Mooket")
+        : t("ui.manualPlusOfficial", "Manual + Official");
+    }
     if (model === "other") return t("ui.mooket", "Mooket");
     return t("ui.official", "Official");
   }
@@ -156,6 +188,72 @@
         background:rgba(16,185,129,.18);
         font-weight:700;
       }
+      #devPanel .dev-compare-meta{
+        margin:6px 0 10px;
+        color:var(--muted-color,#9ca3af);
+        font-size:12px;
+      }
+      #devPanel .dev-section-head{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        margin-bottom:6px;
+      }
+      #devPanel .dev-section-head.is-collapsed{
+        margin-bottom:0;
+      }
+      #devPanel .dev-section-title{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        flex-wrap:wrap;
+      }
+      #devPanel .dev-section-toggle{
+        border:1px solid rgba(255,255,255,.18);
+        background:rgba(255,255,255,.05);
+        color:inherit;
+        border-radius:999px;
+        width:28px;
+        height:28px;
+        font-size:14px;
+        cursor:pointer;
+        flex:0 0 auto;
+      }
+      #devPanel .dev-compare-grid{
+        display:grid;
+        grid-template-columns:minmax(170px,1.8fr) minmax(110px,1fr) minmax(110px,1fr);
+        gap:6px 10px;
+        align-items:center;
+      }
+      #devPanel .dev-compare-cell{
+        min-width:0;
+        font-size:12px;
+      }
+      #devPanel .dev-compare-name{
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      #devPanel .dev-compare-row.is-different,
+      #devPanel .dev-compare-delta{
+        font-weight:700;
+      }
+      #devPanel .dev-compare-delta.pos{
+        color:#34d399;
+      }
+      #devPanel .dev-compare-delta.neg{
+        color:#f87171;
+      }
+      #devPanel .dev-compare-delta.neutral{
+        color:var(--muted-color,#9ca3af);
+      }
+      #devPanel .dev-compare-empty{
+        grid-column:1 / -1;
+        color:var(--muted-color,#9ca3af);
+        font-size:12px;
+        padding:6px 0 2px;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -178,6 +276,7 @@
           <div><label>${t("ui.dungeon", "Dungeon")}:</label> <span id="devDungeon">-</span></div>
           <div><label>${t("ui.tier", "Tier")}:</label> <span id="devTier">-</span></div>
           <div><label>${t("ui.pricing", "Pricing")}:</label> <span id="devPricing">-</span></div>
+          <div><label>${t("ui.activeApi", "Active API")}:</label> <span id="devActiveApi">-</span></div>
         </div>
         <div class="dev-row">
           <div><label>${t("ui.runsPerDay", "Runs / day")}:</label> <span id="devRuns">-</span></div>
@@ -192,20 +291,41 @@
         <div id="devError" class="dev-error hidden"></div>
 
         <div class="dev-section">
-          <div class="dev-ev-head">
-            <div id="devEvSideToggle" class="dev-side-toggle" role="group" aria-label="${t("ui.price", "Price")}">
-              <button type="button" class="dev-side-btn${devEvSide === "bid" ? " is-active" : ""}" data-side="bid" aria-pressed="${devEvSide === "bid" ? "true" : "false"}">${t("ui.bid", "bid")}</button>
-              <button type="button" class="dev-side-btn${devEvSide === "ask" ? " is-active" : ""}" data-side="ask" aria-pressed="${devEvSide === "ask" ? "true" : "false"}">${t("ui.ask", "ask")}</button>
+          <div id="devApiCompareHead" class="dev-section-head">
+            <div class="dev-section-title">
+              <div id="devApiDiffToggle" class="dev-side-toggle" role="group" aria-label="${t("ui.apiCompareFilter", "API compare filter")}">
+                <button type="button" class="dev-side-btn${devApiDiffFilter === "different" ? " is-active" : ""}" data-diff-filter="different" aria-pressed="${devApiDiffFilter === "different" ? "true" : "false"}">${t("ui.differentOnly", "Different only")}</button>
+                <button type="button" class="dev-side-btn${devApiDiffFilter === "all" ? " is-active" : ""}" data-diff-filter="all" aria-pressed="${devApiDiffFilter === "all" ? "true" : "false"}">${t("ui.allItems", "All items")}</button>
+              </div>
+              <h4>${t("ui.apiPriceCompare", "API price compare")}</h4>
             </div>
-            <h4>${t("ui.chestEvBreakdownTitle", "Chest EV breakdown")} <span id="devSide">${sideLabel}</span></h4>
+            <button id="devApiCompareCollapseBtn" class="dev-section-toggle" type="button" aria-expanded="${devApiCompareOpen ? "true" : "false"}" aria-label="${t("ui.toggleSection", "Toggle section")}">${devApiCompareOpen ? "−" : "+"}</button>
           </div>
-          <div id="devBreakdown" class="dev-grid"></div>
+          <div id="devApiCompareBody"${devApiCompareOpen ? "" : ' hidden'}>
+            <div id="devApiCompareMeta" class="dev-compare-meta">-</div>
+            <div id="devApiCompare" class="dev-compare-grid"></div>
+          </div>
         </div>
 
-        <div class="dev-row" id="devSumRow">
-          <div><label>${t("ui.sumContrib", "Σ contrib:")}</label> <span id="devSumContrib">-</span></div>
-          <div><label>${t("ui.chestEv", "Chest EV:")}</label> <span id="devChestEv">-</span></div>
-          <div><label>${t("ui.deltaSumEv", "Δ (sum - EV):")}</label> <span id="devDelta">-</span></div>
+        <div class="dev-section">
+          <div id="devChestBreakdownHead" class="dev-section-head">
+            <div class="dev-section-title">
+              <div id="devEvSideToggle" class="dev-side-toggle" role="group" aria-label="${t("ui.price", "Price")}">
+                <button type="button" class="dev-side-btn${devEvSide === "bid" ? " is-active" : ""}" data-side="bid" aria-pressed="${devEvSide === "bid" ? "true" : "false"}">${t("ui.bid", "bid")}</button>
+                <button type="button" class="dev-side-btn${devEvSide === "ask" ? " is-active" : ""}" data-side="ask" aria-pressed="${devEvSide === "ask" ? "true" : "false"}">${t("ui.ask", "ask")}</button>
+              </div>
+              <h4>${t("ui.chestEvBreakdownTitle", "Chest EV breakdown")} <span id="devSide">${sideLabel}</span></h4>
+            </div>
+            <button id="devChestBreakdownCollapseBtn" class="dev-section-toggle" type="button" aria-expanded="${devChestBreakdownOpen ? "true" : "false"}" aria-label="${t("ui.toggleSection", "Toggle section")}">${devChestBreakdownOpen ? "−" : "+"}</button>
+          </div>
+          <div id="devChestBreakdownBody"${devChestBreakdownOpen ? "" : ' hidden'}>
+            <div id="devBreakdown" class="dev-grid"></div>
+            <div class="dev-row" id="devSumRow">
+              <div><label>${t("ui.sumContrib", "Σ contrib:")}</label> <span id="devSumContrib">-</span></div>
+              <div><label>${t("ui.chestEv", "Chest EV:")}</label> <span id="devChestEv">-</span></div>
+              <div><label>${t("ui.deltaSumEv", "Δ (sum - EV):")}</label> <span id="devDelta">-</span></div>
+            </div>
+          </div>
         </div>
 
         <div class="dev-section">
@@ -237,6 +357,32 @@
         devEvSide = next;
         updateEvSideToggleUi();
         void refresh();
+      });
+    }
+    const apiDiffToggle = document.getElementById("devApiDiffToggle");
+    if (apiDiffToggle) {
+      apiDiffToggle.addEventListener("click", (e) => {
+        const btn = e.target?.closest?.("button[data-diff-filter]");
+        if (!btn) return;
+        const next = normalizeApiDiffFilter(btn.dataset.diffFilter);
+        if (next === devApiDiffFilter) return;
+        devApiDiffFilter = next;
+        updateApiDiffToggleUi();
+        void refresh();
+      });
+    }
+    const apiCompareCollapseBtn = document.getElementById("devApiCompareCollapseBtn");
+    if (apiCompareCollapseBtn) {
+      apiCompareCollapseBtn.addEventListener("click", () => {
+        devApiCompareOpen = !devApiCompareOpen;
+        updateApiCompareCollapseUi();
+      });
+    }
+    const chestBreakdownCollapseBtn = document.getElementById("devChestBreakdownCollapseBtn");
+    if (chestBreakdownCollapseBtn) {
+      chestBreakdownCollapseBtn.addEventListener("click", () => {
+        devChestBreakdownOpen = !devChestBreakdownOpen;
+        updateChestBreakdownCollapseUi();
       });
     }
     bindResize(panel);
@@ -329,6 +475,32 @@
     }
   }
 
+  function normalizeLootOverrideEntry(raw) {
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric) && numeric >= 0) return Math.round(numeric);
+    if (!raw || typeof raw !== "object") return null;
+    const mode = String(raw.mode || "").trim().toLowerCase();
+    if (mode === "bid") return { mode: "Bid" };
+    if (mode === "ask") return { mode: "Ask" };
+    if (mode === "custom") {
+      const price = Number(raw.price);
+      if (Number.isFinite(price) && price >= 0) return { mode: "Custom", price: Math.round(price) };
+    }
+    return null;
+  }
+
+  function normalizeLootOverrideMap(raw) {
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    for (const [hrid, value] of Object.entries(raw)) {
+      const key = String(hrid || "").trim();
+      if (!key) continue;
+      const normalized = normalizeLootOverrideEntry(value);
+      if (normalized != null) out[key] = normalized;
+    }
+    return out;
+  }
+
   function mergeOverrideMaps(base, more) {
     const out = {};
     if (base && typeof base === "object") Object.assign(out, base);
@@ -343,17 +515,18 @@
   }
 
   function readZoneCompareState() {
-    const rawOverrides = parseJson(storageGetItem(ZC_STORAGE.manualOverrides), {});
-    const manualOverrides = {};
-    if (rawOverrides && typeof rawOverrides === "object") {
-      for (const [k, v] of Object.entries(rawOverrides)) {
-        const n = Number(v);
-        if (Number.isFinite(n) && n >= 0) manualOverrides[k] = n;
-      }
-    }
+    const sharedEnabledRaw = storageGetItem(SHARED_LOOT_OVERRIDE_ENABLED_KEY);
+    const sharedOverridesRawText = storageGetItem(SHARED_LOOT_PRICE_OVERRIDES_KEY);
+    const hasSharedState = sharedEnabledRaw != null || (sharedOverridesRawText != null && String(sharedOverridesRawText).trim() !== "");
+    const rawOverrides = hasSharedState
+      ? parseJson(sharedOverridesRawText, {})
+      : parseJson(storageGetItem(ZC_STORAGE.legacyManualOverrides), {});
+    const manualOverrides = normalizeLootOverrideMap(rawOverrides);
     return {
       lowDrop: storageGetItem(ZC_STORAGE.lowDrop) === "1",
-      manualLoot: storageGetItem(ZC_STORAGE.manualLoot) === "1",
+      manualLoot: hasSharedState
+        ? sharedEnabledRaw === "1"
+        : storageGetItem(ZC_STORAGE.legacyManualLoot) === "1",
       mirrorBackslot: storageGetItem(ZC_STORAGE.mirrorBackslot) === "1",
       manualOverrides,
     };
@@ -546,11 +719,305 @@
     });
   }
 
+  function updateApiDiffToggleUi() {
+    const host = document.getElementById("devApiDiffToggle");
+    if (!host) return;
+    host.querySelectorAll("button[data-diff-filter]").forEach((btn) => {
+      const filter = normalizeApiDiffFilter(btn.dataset.diffFilter);
+      const isActive = filter === devApiDiffFilter;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function updateApiCompareCollapseUi() {
+    const body = document.getElementById("devApiCompareBody");
+    const btn = document.getElementById("devApiCompareCollapseBtn");
+    const head = document.getElementById("devApiCompareHead");
+    if (body) body.hidden = !devApiCompareOpen;
+    if (btn) {
+      btn.textContent = devApiCompareOpen ? "−" : "+";
+      btn.setAttribute("aria-expanded", devApiCompareOpen ? "true" : "false");
+    }
+    if (head) head.classList.toggle("is-collapsed", !devApiCompareOpen);
+  }
+
+  function updateChestBreakdownCollapseUi() {
+    const body = document.getElementById("devChestBreakdownBody");
+    const btn = document.getElementById("devChestBreakdownCollapseBtn");
+    const head = document.getElementById("devChestBreakdownHead");
+    if (body) body.hidden = !devChestBreakdownOpen;
+    if (btn) {
+      btn.textContent = devChestBreakdownOpen ? "−" : "+";
+      btn.setAttribute("aria-expanded", devChestBreakdownOpen ? "true" : "false");
+    }
+    if (head) head.classList.toggle("is-collapsed", !devChestBreakdownOpen);
+  }
+
+  function scheduleRefreshIfPanelOpen(delayMs = 60) {
+    if (devRefreshTimer) window.clearTimeout(devRefreshTimer);
+    devRefreshTimer = window.setTimeout(() => {
+      devRefreshTimer = 0;
+      const panel = document.getElementById("devPanel");
+      if (!panel || panel.classList.contains("hidden")) return;
+      void refresh();
+    }, Math.max(0, Number(delayMs) || 0));
+  }
+
+  async function getInitData() {
+    const shared = getInitDataShared();
+    if (shared && typeof shared.getInitData === "function") {
+      const data = await shared.getInitData();
+      if (data) return data;
+    }
+    return window.InitCharacterData || null;
+  }
+
+  function fallbackItemName(hrid) {
+    const text = String(hrid || "");
+    const id = text.split("/").pop() || text;
+    return id
+      .split("_")
+      .map((part) => part ? (part[0].toUpperCase() + part.slice(1)) : "")
+      .join(" ");
+  }
+
+  function normalizeComparablePrice(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function appendCompareCell(grid, text, className) {
+    const cell = document.createElement("div");
+    cell.className = className;
+    cell.textContent = text;
+    grid.appendChild(cell);
+  }
+
+  function getAllDungeonKeys(fallbackDungeonKey = "") {
+    const keys = readAvailableDungeonTabs()
+      .map((tab) => String(tab?.key || "").trim())
+      .filter(Boolean);
+    if (!keys.length) {
+      const fallback = String(fallbackDungeonKey || "").trim();
+      return fallback ? [fallback] : [];
+    }
+    return Array.from(new Set(keys));
+  }
+
+  async function collectRelevantHridsAcrossDungeons(dungeonKeys, getter) {
+    const hrids = new Set();
+    const keys = Array.isArray(dungeonKeys) ? dungeonKeys : [];
+    await Promise.all(keys.map(async (key) => {
+      const list = await getter(key);
+      (Array.isArray(list) ? list : []).forEach((hrid) => {
+        const text = String(hrid || "").trim();
+        if (text) hrids.add(text);
+      });
+    }));
+    return Array.from(hrids);
+  }
+
+  async function getMergedMarketSlimForDungeons(api, dungeonKeys, source) {
+    const merged = {};
+    const missing = [];
+    const keys = Array.isArray(dungeonKeys) ? dungeonKeys : [];
+
+    keys.forEach((key) => {
+      const market = api.getMarketSlim?.(key, source) || null;
+      if (market && typeof market === "object") {
+        Object.assign(merged, market);
+      } else {
+        missing.push(key);
+      }
+    });
+
+    if (missing.length && typeof api.refreshPricesForDungeon === "function") {
+      await Promise.all(
+        missing.map((key) =>
+          api.refreshPricesForDungeon(key, source, { silent: true, reason: "devtools" }).catch(() => null)
+        )
+      );
+      missing.forEach((key) => {
+        const market = api.getMarketSlim?.(key, source) || null;
+        if (market && typeof market === "object") Object.assign(merged, market);
+      });
+    }
+
+    return Object.keys(merged).length ? merged : null;
+  }
+
+  async function getActiveCalculatorPricingContext(dungeonKey) {
+    const hrids = new Set();
+    let source = "default";
+    let label = t("ui.relevantItems", "relevant items");
+    let dungeonKeys = [];
+
+    if (document.getElementById("keysToggle")?.checked && typeof window.KeysInline?.getRelevantPricingHrids === "function") {
+      source = "keys";
+      label = t("ui.keysPricingItems", "key pricing items");
+      dungeonKeys = getAllDungeonKeys(dungeonKey);
+      const list = await collectRelevantHridsAcrossDungeons(
+        dungeonKeys,
+        (key) => window.KeysInline.getRelevantPricingHrids(key)
+      );
+      list.forEach((hrid) => hrids.add(hrid));
+      return { source, label, hrids: Array.from(hrids), dungeonKeys };
+    }
+
+    if (document.getElementById("tokenShopToggle")?.checked && typeof window.TokenShopInline?.getRelevantPricingHrids === "function") {
+      source = "token_shop";
+      label = t("ui.tokenShopPricingItems", "token shop pricing items");
+      dungeonKeys = getAllDungeonKeys(dungeonKey);
+      const list = await collectRelevantHridsAcrossDungeons(
+        dungeonKeys,
+        (key) => window.TokenShopInline.getRelevantPricingHrids(key)
+      );
+      list.forEach((hrid) => hrids.add(hrid));
+      return { source, label, hrids: Array.from(hrids), dungeonKeys };
+    }
+
+    if (document.getElementById("zoneCompareToggle")?.checked && typeof window.ZoneCompareInline?.getRelevantPricingHrids === "function") {
+      source = "zone_compare";
+      label = t("ui.zoneComparePricingItems", "zone compare chest items");
+      dungeonKeys = getAllDungeonKeys(dungeonKey);
+      const list = await window.ZoneCompareInline.getRelevantPricingHrids(dungeonKey);
+      (Array.isArray(list) ? list : []).forEach((hrid) => {
+        const text = String(hrid || "").trim();
+        if (text) hrids.add(text);
+      });
+      return { source, label, hrids: Array.from(hrids), dungeonKeys };
+    }
+
+    dungeonKeys = getAllDungeonKeys(dungeonKey);
+    return { source, label, hrids: [], dungeonKeys };
+  }
+
+  function formatDelta(delta) {
+    if (!Number.isFinite(delta)) return "—";
+    if (delta === 0) return "0";
+    const sign = delta > 0 ? "+" : "−";
+    return `${sign}${fmt(Math.abs(delta))}`;
+  }
+
+  function deltaClass(delta) {
+    if (!Number.isFinite(delta) || delta === 0) return "neutral";
+    return delta > 0 ? "pos" : "neg";
+  }
+
+  async function buildApiCompareData(dungeonKey) {
+    const api = window.DungeonAPI || {};
+    const activeContext = await getActiveCalculatorPricingContext(dungeonKey);
+    const compareDungeonKeys = Array.isArray(activeContext.dungeonKeys) && activeContext.dungeonKeys.length
+      ? activeContext.dungeonKeys
+      : getAllDungeonKeys(dungeonKey);
+    const officialMarket = await getMergedMarketSlimForDungeons(api, compareDungeonKeys, "official");
+    const otherMarket = await getMergedMarketSlimForDungeons(api, compareDungeonKeys, "other");
+    const hrids = new Set(activeContext.hrids || []);
+    if (!hrids.size) {
+      const relevantHrids = (typeof window.DungeonChestEV.getEvRelevantHrids === "function")
+        ? await window.DungeonChestEV.getEvRelevantHrids(dungeonKey, officialMarket || otherMarket || {})
+        : [];
+      (relevantHrids || []).forEach((hrid) => hrids.add(hrid));
+      const keyHrids = getMetaShared()?.marketHridsForUiKey?.(dungeonKey) || null;
+      if (keyHrids?.entry) hrids.add(keyHrids.entry);
+      if (keyHrids?.chestKey) hrids.add(keyHrids.chestKey);
+    }
+
+    const init = await getInitData();
+    const itemMap = init?.itemDetailMap || init?.itemMap || init?.items || {};
+    const allRows = Array.from(hrids).map((hrid) => {
+      const official = extractAskBid(officialMarket, hrid);
+      const other = extractAskBid(otherMarket, hrid);
+      const officialBid = normalizeComparablePrice(official?.bid);
+      const otherBid = normalizeComparablePrice(other?.bid);
+      const officialAsk = normalizeComparablePrice(official?.ask);
+      const otherAsk = normalizeComparablePrice(other?.ask);
+      const bidDelta = (officialBid !== null && otherBid !== null) ? (otherBid - officialBid) : NaN;
+      const askDelta = (officialAsk !== null && otherAsk !== null) ? (otherAsk - officialAsk) : NaN;
+      return {
+        hrid,
+        name: itemMap?.[hrid]?.name || fallbackItemName(hrid),
+        bidDelta,
+        askDelta,
+        different: (Number.isFinite(bidDelta) && bidDelta !== 0) || (Number.isFinite(askDelta) && askDelta !== 0),
+        official,
+        other,
+      };
+    }).sort((a, b) => {
+      if (a.different !== b.different) return a.different ? -1 : 1;
+      const deltaDiff = Math.max(Math.abs(Number(b.bidDelta) || 0), Math.abs(Number(b.askDelta) || 0))
+        - Math.max(Math.abs(Number(a.bidDelta) || 0), Math.abs(Number(a.askDelta) || 0));
+      if (deltaDiff !== 0) return deltaDiff;
+      return String(a.name).localeCompare(String(b.name));
+    });
+
+    const rows = devApiDiffFilter === "all" ? allRows : allRows.filter((row) => row.different);
+    return {
+      rows,
+      totalCount: allRows.length,
+      shownCount: rows.length,
+      filter: devApiDiffFilter,
+      sourceLabel: hrids.size && activeContext.hrids?.length ? activeContext.label : t("ui.relevantItems", "relevant items"),
+      officialReady: !!officialMarket,
+      otherReady: !!otherMarket,
+    };
+  }
+
+  function renderApiCompare(data = {}) {
+    const grid = document.getElementById("devApiCompare");
+    const meta = document.getElementById("devApiCompareMeta");
+    if (!grid || !meta) return;
+
+    grid.innerHTML = "";
+    meta.textContent = tf(
+      "ui.apiCompareShowing",
+      "Showing {shown} of {total} {label}",
+      {
+        shown: String(data.shownCount ?? 0),
+        total: String(data.totalCount ?? 0),
+        label: String(data.sourceLabel || t("ui.relevantItems", "relevant items")),
+      }
+    );
+    if (!data.officialReady || !data.otherReady) {
+      meta.textContent += ` • ${t("ui.apiCompareMissingSource", "Missing one saved API snapshot")}`;
+    }
+
+    [
+      t("ui.items", "Item"),
+      t("ui.bid", "bid"),
+      t("ui.ask", "ask"),
+    ].forEach((header) => {
+      const el = document.createElement("div");
+      el.className = "dev-th";
+      el.textContent = header;
+      grid.appendChild(el);
+    });
+
+    if (!Array.isArray(data.rows) || !data.rows.length) {
+      const empty = document.createElement("div");
+      empty.className = "dev-compare-empty";
+      empty.textContent = data.filter === "all"
+        ? t("ui.noRelevantItems", "No relevant items found.")
+        : t("ui.noApiDiffs", "No informative API price differences found for this dungeon.");
+      grid.appendChild(empty);
+      return;
+    }
+
+    data.rows.forEach((row) => {
+      const rowClass = row.different ? " dev-compare-row is-different" : " dev-compare-row";
+      appendCompareCell(grid, row.name, `dev-compare-cell dev-compare-name${rowClass}`);
+      appendCompareCell(grid, formatDelta(row.bidDelta), `dev-compare-cell dev-compare-delta ${deltaClass(row.bidDelta)}${rowClass}`);
+      appendCompareCell(grid, formatDelta(row.askDelta), `dev-compare-cell dev-compare-delta ${deltaClass(row.askDelta)}${rowClass}`);
+    });
+  }
+
   function renderSummaryFields(opts = {}) {
     const {
       dungeonKey,
       selectedTier,
       pricing,
+      activeApiSource,
       runs,
       buff,
       tax,
@@ -560,7 +1027,8 @@
     const sideLabel = evSideLabel(side);
     setRequiredText("devDungeon", dungeonKey);
     setRequiredText("devTier", selectedTier || "-");
-    setRequiredText("devPricing", formatPricingModelLabel(pricing));
+    setRequiredText("devPricing", formatPricingModelLabel(pricing, activeApiSource));
+    setRequiredText("devActiveApi", apiSourceLabel(activeApiSource));
     setRequiredText("devRuns", String(runs));
     setRequiredText("devBuff", String(buff));
     setRequiredText("devTax", String(tax));
@@ -569,6 +1037,9 @@
     setRequiredText("devEntry", `${fmt(prices.entryAsk)} / ${fmt(prices.entryBid)}`);
     setRequiredText("devChest", `${fmt(prices.chestKeyAsk)} / ${fmt(prices.chestKeyBid)}`);
     updateEvSideToggleUi();
+    updateApiDiffToggleUi();
+    updateApiCompareCollapseUi();
+    updateChestBreakdownCollapseUi();
   }
 
   // helper to render refined section
@@ -679,13 +1150,14 @@
     }
     if (!dungeonKey) throw new Error(t("ui.noDungeonSelected", "No dungeon selected"));
     const pricing = window.DungeonAPI.getPricingModel?.() || "official";
+    const activeApiSource = normalizeApiSource(window.DungeonAPI.getActiveApiSource?.() || (pricing === "other" ? "other" : "official"));
     const runs = window.DungeonAPI.getRunsPerDay?.() || 0;
     const buff = window.DungeonAPI.getBuffTier?.() || 0;
     const tax = window.DungeonAPI.getDefaultTaxPct?.() || 0;
     const side = normalizeEvSide(devEvSide);
     const prices = window.DungeonAPI.getKeyPricesAB(dungeonKey, pricing);
     const selectedTier = window.DungeonAPI.getSelectedTier?.() || "-";
-    return { dungeonKey, pricing, runs, buff, tax, side, prices, selectedTier, zoneCompareOn, zoneTabs };
+    return { dungeonKey, pricing, activeApiSource, runs, buff, tax, side, prices, selectedTier, zoneCompareOn, zoneTabs };
   }
 
   async function computeDevRefreshData(ctx) {
@@ -750,19 +1222,24 @@
     try {
       const ctx = readDevRefreshContext();
       renderDungeonTabs(ctx);
-      const { dungeonKey, pricing, runs, buff, tax, side, prices, selectedTier } = ctx;
-      const { ev } = await computeDevRefreshData(ctx);
+      const { dungeonKey, pricing, activeApiSource, runs, buff, tax, side, prices, selectedTier } = ctx;
+      const [{ ev }, apiCompare] = await Promise.all([
+        computeDevRefreshData(ctx),
+        buildApiCompareData(dungeonKey),
+      ]);
 
       renderSummaryFields({
         dungeonKey,
         selectedTier,
         pricing,
+        activeApiSource,
         runs,
         buff,
         tax,
         side,
         prices,
       });
+      renderApiCompare(apiCompare);
 
       const sumContrib = renderBreakdownGrid(ev);
 
@@ -836,6 +1313,34 @@
         rebuilt.classList.remove("hidden");
         void refresh();
       }
+    });
+    document.addEventListener("dungeon:pricing-context-changed", () => {
+      scheduleRefreshIfPanelOpen(80);
+    });
+    document.addEventListener("dungeon:selection-changed", () => {
+      scheduleRefreshIfPanelOpen(40);
+    });
+    document.addEventListener("dungeon:prices-refreshed", () => {
+      scheduleRefreshIfPanelOpen(120);
+    });
+    document.addEventListener("keys:planner-changed", () => {
+      scheduleRefreshIfPanelOpen(40);
+    });
+    document.addEventListener("token-shop:selection-changed", () => {
+      scheduleRefreshIfPanelOpen(40);
+    });
+    document.addEventListener("zone-compare:rendered", () => {
+      scheduleRefreshIfPanelOpen(80);
+    });
+    document.addEventListener("dungeon:loot-overrides-changed", () => {
+      scheduleRefreshIfPanelOpen(60);
+    });
+    ["advMode", "keysToggle", "tokenShopToggle", "zoneCompareToggle"].forEach((id) => {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.addEventListener("change", () => {
+        scheduleRefreshIfPanelOpen(50);
+      });
     });
   }
 
