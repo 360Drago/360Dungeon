@@ -58,7 +58,6 @@
     0.1902,
     0.20,
   ]);
-
   let marketCacheBySource = { official: null, other: null };
   let marketCacheTsBySource = { official: 0, other: 0 };
   let marketFetchInFlightBySource = { official: null, other: null };
@@ -1410,7 +1409,14 @@
       .join(" ");
   }
 
-  function fragmentColorName(itemHrid) {
+  function fragmentColorName(itemHrid, name) {
+    const base = String(name || fallbackItemName(itemHrid)).trim();
+    const shortened = base
+      .replace(/\s*Key Fragment\s*$/i, "")
+      .replace(/\s*\u94a5\u5319\u788e\u7247\s*$/u, "")
+      .replace(/\s*\u9470\u5319\u788e\u7247\s*$/u, "")
+      .trim();
+    if (shortened) return shortened;
     const m = String(itemHrid || "").match(/^\/items\/(.+)_key_fragment$/);
     if (!m) return fallbackItemName(itemHrid);
     const color = m[1].split("_")[0] || "";
@@ -1425,7 +1431,7 @@
   }
 
   function ingredientLabel(itemHrid, fallbackName) {
-    if (String(itemHrid || "").endsWith("_key_fragment")) return fragmentColorName(itemHrid);
+    if (String(itemHrid || "").endsWith("_key_fragment")) return fragmentColorName(itemHrid, fallbackName);
     return fallbackName || fallbackItemName(itemHrid);
   }
 
@@ -2494,6 +2500,7 @@
 
     toggle.addEventListener("change", apply);
     document.addEventListener("site:lang-changed", () => {
+      recipeCache = null;
       if (toggle.checked) void render();
     });
     document.addEventListener("dungeon:selection-changed", () => {

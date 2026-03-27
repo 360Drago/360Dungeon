@@ -2962,6 +2962,9 @@
   window.setInterval(tickTimers, 5000);
   document.addEventListener("site:lang-changed", updateApiSourceFooter);
   document.addEventListener("site:lang-changed", syncPricingRefreshControls);
+  document.addEventListener("site:lang-changed", () => {
+    window.requestAnimationFrame(() => refreshVisibleUiForLanguage());
+  });
 
   // ===== Dungeon selection =====
   function clearClearTimeOnSelectionChange(fromUser, prevValue, nextValue) {
@@ -3524,6 +3527,36 @@
     updateSelectionSummary();
     updateQuickStartHint();
     updateLootOverview();
+  }
+
+  function clearLanguageSensitiveCachesForVisibleDungeon() {
+    lootOverrideItemsCache = [];
+    if (!selectedDungeon) return;
+
+    const clearEvCache = (store, storageKey) => {
+      if (!store || typeof store !== "object") return store;
+      const record = store[selectedDungeon];
+      if (!record || typeof record !== "object") return store;
+      const nextRecord = { ...record };
+      delete nextRecord.ev;
+      delete nextRecord.evBid;
+      delete nextRecord.evAsk;
+      const nextStore = { ...store, [selectedDungeon]: nextRecord };
+      savePerDungeonPrices(storageKey, nextStore);
+      return nextStore;
+    };
+
+    officialSaved = clearEvCache(officialSaved, KEY_OFFICIAL_PRICES);
+    otherSaved = clearEvCache(otherSaved, KEY_OTHER_PRICES);
+  }
+
+  function refreshVisibleUiForLanguage() {
+    clearLanguageSensitiveCachesForVisibleDungeon();
+    updateAllSummaries();
+    updateChestEvUI();
+    void rerenderVisibleResults();
+    void renderLootOverrideList({ keepScroll: true, ensureCache: true });
+    window.requestAnimationFrame(() => updateMarkerPosition());
   }
 
   // ===== Simulate increments counter =====

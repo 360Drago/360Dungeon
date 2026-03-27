@@ -1023,6 +1023,8 @@
 
     toggle.addEventListener("change", apply);
     document.addEventListener("site:lang-changed", () => {
+      rowsCacheByUiKey.clear();
+      lastRenderState = null;
       if (toggle.checked) window.setTimeout(() => { render({ suppressBump: true }); }, 20);
     });
     apply();

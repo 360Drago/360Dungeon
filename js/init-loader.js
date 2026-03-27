@@ -30,16 +30,27 @@
     storageCall("setItem", key, value);
   }
 
+  function applyRuntimeItemNameTranslations(data) {
+    const apply = window.DungeonItemNameI18n?.applyItemNameTranslations;
+    if (typeof apply === "function") {
+      try {
+        return apply(data) || data;
+      } catch (_) { }
+    }
+    return data;
+  }
+
   function cacheAndReturn(data) {
     if (!data || typeof data !== "object") return null;
-    window.InitCharacterData = data;
+    const translated = applyRuntimeItemNameTranslations(data);
+    window.InitCharacterData = translated;
     try {
-      const serialized = JSON.stringify(data);
+      const serialized = JSON.stringify(translated);
       if (serialized.length <= CACHE_MAX_CHARS) {
         storageSetItem(CACHE_KEY, serialized);
       }
     } catch (_) { }
-    return data;
+    return translated;
   }
 
   function tryLoadCachedInit() {
