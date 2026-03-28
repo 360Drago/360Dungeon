@@ -497,6 +497,7 @@
         display:inline-flex;
         align-items:center;
         justify-content:center;
+        line-height:1;
         cursor:pointer;
         transition:border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
       }
@@ -511,7 +512,7 @@
         outline:2px solid color-mix(in srgb, var(--accent) 55%, transparent);
         outline-offset:2px;
       }
-      #zoneCompareInline .zcJumpBtn span { display:inline-block; font-size:15px; line-height:1; transform:translateY(-.5px); }
+      #zoneCompareInline .zcJumpBtn span { display:flex; align-items:center; justify-content:center; width:100%; height:100%; font-size:18px; line-height:1; transform:none; }
       #zoneCompareInline .zcJumpBtn.is-warning {
         border-color:color-mix(in srgb, #facc15 62%, rgba(255,255,255,.20));
         background:color-mix(in srgb, #facc15 12%, rgba(255,255,255,.03));
