@@ -323,9 +323,9 @@
           <div class="simpleCardHeader">
             <div class="simpleHeaderLeft">
               <h3 class="simpleTitle">Quick Calculator</h3>
-              <div class="muted small" id="simplePricingLine">Official API • Last refresh: —</div>
+              <div class="muted small" id="simplePricingLine">Current API • Last refresh: —</div>
             </div>
-            <button class="miniBtn tipHost" type="button" id="simpleOfficialRefreshBtn" data-tip="Refresh Official API prices">Refresh prices</button>
+            <button class="miniBtn tipHost" type="button" id="simpleOfficialRefreshBtn" data-tip="Refresh current API prices">Refresh prices</button>
           </div>
 
           <div class="simpleGrid">
@@ -497,11 +497,11 @@
         <div class="panel accordion" data-panel="pricing">
           <button class="panelToggle" type="button" aria-expanded="false" aria-controls="panelPricingBody">
             <div class="panelToggleLeft">
-              <h4>Pricing model</h4>
-              <div class="panelSub muted small" id="pricingSummaryLine">Official API • Last refresh: —</div>
+              <h4>Key price override</h4>
+              <div class="panelSub muted small" id="pricingSummaryLine">Current API • Last refresh: —</div>
             </div>
             <div class="panelToggleRight">
-              <div class="panelPill" id="pricingPill">Official</div>
+              <div class="panelPill" id="pricingPill">Current API prices</div>
               <span class="chev" aria-hidden="true"></span>
             </div>
           </button>
@@ -542,44 +542,44 @@
                 </div>
               </label>
 
-              <!-- Official API (default, middle) -->
-              <label class="choiceCard isDefault" data-choice="official">
-                <input class="choiceRadio" type="radio" name="pricing" value="official" checked />
+              <label class="choiceCard" data-choice="keyplanner">
+                <input class="choiceRadio" type="radio" name="pricing" value="keyplanner" />
                 <div class="choiceMain">
                   <div class="choiceTop">
-                    <div class="choiceName">Official API</div>
-                    <div class="choiceTag">
-                      Last checked: <span class="mono" id="officialAge">—</span>
-                    </div>
+                    <div class="choiceName">Keys tab import</div>
+                    <button class="choiceJumpBtn" type="button" id="keyPlannerOpenBtn" aria-label="Open Keys tab" title="Open Keys tab">
+                      <span aria-hidden="true">↗</span>
+                    </button>
                   </div>
 
                   <div class="choiceDesc muted">
-                    Uses the official pricing endpoint.
+                    Uses your Keys tab crafting settings for per-dungeon entry and chest key costs.
                   </div>
 
-                  <div class="row">
-                    <button class="miniBtn" type="button" id="officialRefreshBtn">Refresh now</button>
-                    <div class="muted small" id="officialRefreshStamp"></div>
+                  <div class="choiceMetaRow">
+                    <div class="muted small" id="keyPlannerPreview">Uses Keys tab settings.</div>
+                    <span class="tipHost simpleTip keyImportTip" id="keyPlannerDetails" data-tip="Keys planner import" tabindex="0" role="button" aria-label="Keys planner import details">?</span>
                   </div>
                 </div>
               </label>
 
-              <!-- Other API (below) -->
-              <label class="choiceCard" data-choice="other">
-                <input class="choiceRadio" type="radio" name="pricing" value="other" />
+              <!-- Current API (default, middle) -->
+              <label class="choiceCard isDefault" data-choice="api">
+                <input class="choiceRadio" type="radio" name="pricing" value="api" checked />
                 <div class="choiceMain">
                   <div class="choiceTop">
-                    <div class="choiceName">Mooket API</div>
-                    <div class="choiceTag">Alt</div>
+                    <div class="choiceName">Current API prices</div>
+                    <div class="choiceTag" id="apiPricingChoiceTag">Active API</div>
                   </div>
 
                   <div class="choiceDesc muted">
-                    Secondary endpoint for comparisons.
+                    Uses instant-buy key prices from the API selected in the footer.
                   </div>
 
                   <div class="row">
-                    <button class="miniBtn" type="button" id="otherRefreshBtn">Refresh</button>
-                    <div class="muted small" id="otherStatus">Not refreshed yet.</div>
+                    <button class="miniBtn" type="button" id="officialRefreshBtn">Refresh prices</button>
+                    <div class="muted small mono" id="officialAge">—</div>
+                    <div class="muted small" id="officialRefreshStamp"></div>
                   </div>
                 </div>
               </label>
@@ -784,6 +784,7 @@
     - Core runtime dependency scripts are deferred and execute in the order listed below.
     - storage-shared.js provides shared localStorage helper primitives for runtime modules (site-ui, landing, chest-ev, init-loader, time-shared, inline panels).
     - pricing-state-shared.js provides shared saved-pricing/key-price derivation helpers.
+    - key-pricing-import-shared.js provides shared key-planner import plumbing for advanced/compare consumers.
     - pricing-refresh-shared.js provides shared refresh snapshot assembly/validation helpers.
     - selection-ui-shared.js provides shared selected-button UI state helpers (`is-selected`, `aria-pressed`).
     - ui-state-shared.js provides shared body stage and accordion panel open-state helpers.
@@ -799,6 +800,7 @@
   -->
   <script src="./js/storage-shared.js" defer></script>
   <script src="./js/pricing-state-shared.js" defer></script>
+  <script src="./js/key-pricing-import-shared.js" defer></script>
   <script src="./js/pricing-refresh-shared.js" defer></script>
   <script src="./js/selection-ui-shared.js" defer></script>
   <script src="./js/ui-state-shared.js" defer></script>
