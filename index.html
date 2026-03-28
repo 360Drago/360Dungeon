@@ -22,10 +22,12 @@
     (() => {
       try {
         const raw = localStorage.getItem("site.theme");
+        const disco = localStorage.getItem("site.theme.disco") === "1";
         const override = (raw === "light" || raw === "dark") ? raw : "";
         const prefersDark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-        const theme = override || (prefersDark ? "dark" : "light");
+        const theme = disco ? "dark" : (override || (prefersDark ? "dark" : "light"));
         document.documentElement.dataset.theme = theme;
+        document.documentElement.classList.toggle("disco-mode", disco);
         document.documentElement.style.colorScheme = theme;
         const meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute("content", theme === "light" ? "#f6f7fb" : "#18181b");
