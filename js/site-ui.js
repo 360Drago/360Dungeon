@@ -1,6 +1,9 @@
 ﻿(() => {
     const LS_LANG = "site.lang";   // "en" | "zh-Hans" | "zh-Hant"
     const LS_THEME = "site.theme"; // "light" | "dark" | ""/"auto" (system)
+    const LS_THEME_DISCO = "site.theme.disco"; // "1" when the hidden disco mode is enabled
+    const DISCO_TOGGLE_WINDOW_MS = 4200;
+    const DISCO_TOGGLE_COUNT = 4;
 
     function getStorageShared() {
         return window.DungeonStorageShared || null;
@@ -424,6 +427,8 @@
             "ui.craft": "Craft",
             "ui.cost": "Cost",
             "ui.guzzlingPouchLevel": "Guzzling Pouch lv.",
+            "ui.discoModeOn": "Disco mode unlocked. Toggle the theme a bunch again to escape.",
+            "ui.discoModeOff": "Disco mode disabled. Sanity restored.",
             "ui.artisanCost": "Artisan Cost",
             "ui.craftCost": "Craft Cost",
             "ui.instantArtisan": "Instant Artisan",
@@ -816,6 +821,8 @@
             "ui.craft": "制作",
             "ui.cost": "成本",
             "ui.guzzlingPouchLevel": "畅饮袋等级",
+            "ui.discoModeOn": "迪斯科模式已解锁。再连续切换几次主题就能退出。",
+            "ui.discoModeOff": "迪斯科模式已关闭。理智恢复。",
             "ui.artisanCost": "工匠成本",
             "ui.craftCost": "制作成本",
             "ui.instantArtisan": "即时工匠",
@@ -1236,6 +1243,8 @@
             "ui.craft": "製作",
             "ui.cost": "成本",
             "ui.guzzlingPouchLevel": "暢飲袋等級",
+            "ui.discoModeOn": "迪斯可模式已解鎖。再連續切換幾次主題就能退出。",
+            "ui.discoModeOff": "迪斯可模式已關閉。理智恢復。",
             "ui.artisanCost": "工匠成本",
             "ui.craftCost": "製作成本",
             "ui.instantArtisan": "即時工匠",
@@ -3621,7 +3630,17 @@
         return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     }
 
+    function isDiscoModeEnabled() {
+        return storageGetItem(LS_THEME_DISCO) === "1";
+    }
+
+    function setDiscoModeEnabled(enabled) {
+        if (enabled) storageSetItem(LS_THEME_DISCO, "1");
+        else storageRemoveItem(LS_THEME_DISCO);
+    }
+
     function effectiveTheme() {
+        if (isDiscoModeEnabled()) return "dark";
         const override = getThemeOverride(); // "light" | "dark" | "" (system)
         if (override) return override;
         return prefersDarkScheme() ? "dark" : "light";
@@ -3631,10 +3650,41 @@
         const resolved = theme === "light" ? "light" : "dark";
         document.documentElement.style.colorScheme = resolved;
         const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute("content", resolved === "light" ? "#f6f7fb" : "#18181b");
+        if (meta) {
+            const content = isDiscoModeEnabled()
+                ? (resolved === "light" ? "#ffd43b" : "#ff4fd8")
+                : (resolved === "light" ? "#f6f7fb" : "#18181b");
+            meta.setAttribute("content", content);
+        }
     }
 
     let themeTransitionTimer = null;
+    let themeToggleHistory = [];
+
+    function syncDiscoThemeUi() {
+        const enabled = isDiscoModeEnabled();
+        document.documentElement.classList.toggle("disco-mode", enabled);
+        const themeBtn = document.getElementById("themeBtn");
+        if (themeBtn) themeBtn.classList.toggle("is-disco", enabled);
+        return enabled;
+    }
+
+    function registerRapidThemeToggle() {
+        if (isDiscoModeEnabled()) {
+            themeToggleHistory = [];
+            setDiscoModeEnabled(false);
+            return "disabled";
+        }
+        const now = Date.now();
+        themeToggleHistory = themeToggleHistory.filter((stamp) => (now - stamp) <= DISCO_TOGGLE_WINDOW_MS);
+        themeToggleHistory.push(now);
+        if (themeToggleHistory.length < DISCO_TOGGLE_COUNT) return "";
+        themeToggleHistory = [];
+        const enabled = !isDiscoModeEnabled();
+        setDiscoModeEnabled(enabled);
+        return enabled ? "enabled" : "disabled";
+    }
+
     function applyTheme(opts = {}) {
         const animate = !!opts.animate;
         const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -3650,15 +3700,25 @@
         // Always set a concrete theme so CSS matches what the UI thinks
         const theme = effectiveTheme();
         document.documentElement.dataset.theme = theme;
+        syncDiscoThemeUi();
         updateThemeMeta(theme);
         updateThemeButton();
     }
 
 
     function toggleTheme() {
-        const next = (effectiveTheme() === "dark") ? "light" : "dark";
+        const currentTheme = effectiveTheme();
+        const discoState = registerRapidThemeToggle();
+        const next = discoState === "enabled"
+            ? "dark"
+            : ((currentTheme === "dark") ? "light" : "dark");
         storageSetItem(LS_THEME, next);
         applyTheme({ animate: true });
+        if (discoState === "enabled") {
+            notify(t("ui.discoModeOn", "Disco mode unlocked. Toggle the theme a bunch again to escape."));
+        } else if (discoState === "disabled") {
+            notify(t("ui.discoModeOff", "Disco mode disabled. Sanity restored."));
+        }
     }
 
     let controlsReserveObserver = null;
