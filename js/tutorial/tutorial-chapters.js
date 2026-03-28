@@ -151,7 +151,7 @@
           id: "pricing-panel",
           title: "Pricing Sources",
           body:
-            "If you craft your own keys or prefer another *API* for prices, this is where you change that.",
+            "If you craft your keys or prefer to tell us your own values then this is where you can change that.",
           target: '.panel.accordion[data-panel="pricing"]',
           placement: "left",
           ensure: defaultSelectionEnsure,
@@ -160,7 +160,7 @@
           id: "api-source-footer",
           title: "Site-Wide API",
           body:
-            "You can also change it across the whole site down here.",
+            "Down here is where you can change the API across the whole site.",
           target: "#apiSourceTag",
           placement: "top",
           ensure: defaultSelectionEnsure,
@@ -427,6 +427,24 @@
           target: "#keysPlannerPanel",
           placement: "bottom",
           highlightPadding: 10,
+          ensure: [
+            ...defaultSelectionEnsure,
+            { type: "toggle", selector: "#keysToggle", checked: true },
+            { type: "wait", ms: 180 },
+            { type: "expand", selector: "#keysCalcToggleBtn" },
+          ],
+        },
+        {
+          id: "keys-bank-budget",
+          title: "Budget Planning",
+          body:
+            "If you have a budget we can work backwards to get the the number of keys you will end up with too!",
+          target: () =>
+            document.querySelector("#keysBudgetInput")?.closest(".keysCalcBankRow") ||
+            document.querySelector("#keysBudgetInput") ||
+            document.querySelector("#keysPlannerPanel"),
+          placement: "top",
+          highlightPadding: 8,
           ensure: [
             ...defaultSelectionEnsure,
             { type: "toggle", selector: "#keysToggle", checked: true },
