@@ -1168,6 +1168,14 @@
     return "-";
   }
 
+  function fmtCoins(n) {
+    if (!Number.isFinite(n)) return "-";
+    const abs = Math.abs(n);
+    let compact = String(formatCoinsCompact(abs) || "").replace(/^-+/, "");
+    if (!compact) compact = "0";
+    return n < 0 ? `-${compact}` : compact;
+  }
+
   function getFoodPerDayValue() {
     const raw = String(storageGetItem(KEY_ZONE_COMPARE_FOOD) || storageGetItem(KEY_FOOD_PER_DAY) || "");
     return parseFoodPerDay(raw.trim() || DEFAULT_FOOD_PER_DAY) || 0;
@@ -1294,17 +1302,17 @@
     const chestEach = prices?.chestKey ?? null;
 
     if (typeof lootEntryEach !== "undefined" && lootEntryEach) {
-      lootEntryEach.textContent = fmtGold(entryEach);
+      lootEntryEach.textContent = fmtCoins(entryEach);
     }
     if (typeof lootEntryTotal !== "undefined" && lootEntryTotal) {
-      lootEntryTotal.textContent = (entryEach == null) ? "-" : fmtGold(entryEach * (data.entry || 0));
+      lootEntryTotal.textContent = (entryEach == null) ? "-" : fmtCoins(entryEach * (data.entry || 0));
     }
 
     if (typeof lootChestKeyEach !== "undefined" && lootChestKeyEach) {
-      lootChestKeyEach.textContent = fmtGold(chestEach);
+      lootChestKeyEach.textContent = fmtCoins(chestEach);
     }
     if (typeof lootChestKeyTotal !== "undefined" && lootChestKeyTotal) {
-      lootChestKeyTotal.textContent = (chestEach == null) ? "-" : fmtGold(chestEach * (data.chestKey || 0));
+      lootChestKeyTotal.textContent = (chestEach == null) ? "-" : fmtCoins(chestEach * (data.chestKey || 0));
     }
 
   }
@@ -2379,7 +2387,12 @@
 
     if (!persist) return;
 
-    manualSaved = normalizeManualSavedState({ entryRaw, chestRaw, entry, chest });
+    const nextEntryRaw = entryRaw.trim() !== "" && entry !== null ? fmtCoins(entry) : entryRaw;
+    const nextChestRaw = chestRaw.trim() !== "" && chest !== null ? fmtCoins(chest) : chestRaw;
+    if (manualEntry && manualEntry.value !== nextEntryRaw) manualEntry.value = nextEntryRaw;
+    if (manualChest && manualChest.value !== nextChestRaw) manualChest.value = nextChestRaw;
+
+    manualSaved = normalizeManualSavedState({ entryRaw: nextEntryRaw, chestRaw: nextChestRaw, entry, chest });
     storageSetJson(KEY_MANUAL, manualSaved);
     updateAllSummaries();
   }
@@ -2407,8 +2420,8 @@
     const entry = entryAskValid ? basePrices.entryAsk : (entryBidValid ? basePrices.entryBid : null);
     const chest = chestAskValid ? basePrices.chestKeyAsk : (chestBidValid ? basePrices.chestKeyBid : null);
 
-    manualEntry.value = Number.isFinite(entry) ? Number(entry).toLocaleString() : "";
-    manualChest.value = Number.isFinite(chest) ? Number(chest).toLocaleString() : "";
+    manualEntry.value = Number.isFinite(entry) ? fmtCoins(entry) : "";
+    manualChest.value = Number.isFinite(chest) ? fmtCoins(chest) : "";
     validateAndSaveManual();
   }
 
@@ -2430,14 +2443,14 @@
 
   if (manualEntrySlider) {
     manualEntrySlider.addEventListener("input", () => {
-      manualEntry.value = Number(manualEntrySlider.value).toLocaleString();
+      manualEntry.value = fmtCoins(Number(manualEntrySlider.value));
       validateAndSaveManual();
     });
   }
 
   if (manualChestSlider) {
     manualChestSlider.addEventListener("input", () => {
-      manualChest.value = Number(manualChestSlider.value).toLocaleString();
+      manualChest.value = fmtCoins(Number(manualChestSlider.value));
       validateAndSaveManual();
     });
   }
@@ -3390,11 +3403,11 @@
       return;
     }
 
-    lootChestEv.textContent = fmtGold(ev.chestEv);
+    lootChestEv.textContent = fmtCoins(ev.chestEv);
     const best = ev.bestConversion?.item ? ` (best: ${ev.bestConversion.item})` : "";
-    lootTokenValue.textContent = fmtGold(ev.tokenValue) + best;
+    lootTokenValue.textContent = fmtCoins(ev.tokenValue) + best;
     if (lootRefinedChestEv) {
-      lootRefinedChestEv.textContent = (typeof ev.refinedChestEv === "number") ? fmtGold(ev.refinedChestEv) : "-";
+      lootRefinedChestEv.textContent = (typeof ev.refinedChestEv === "number") ? fmtCoins(ev.refinedChestEv) : "-";
     }
   }
 
@@ -3521,13 +3534,13 @@
       const askDisplay = Number.isFinite(askPrice) ? askPrice : null;
       if (isAskLocked) {
         row.classList.add("isAskLocked");
-        input.value = Number.isFinite(askDisplay) ? fmtGold(askDisplay) : "";
-        input.placeholder = Number.isFinite(askDisplay) ? fmtGold(askDisplay) : i18nT("ui.ask", "Ask");
+        input.value = Number.isFinite(askDisplay) ? fmtCoins(askDisplay) : "";
+        input.placeholder = Number.isFinite(askDisplay) ? fmtCoins(askDisplay) : i18nT("ui.ask", "Ask");
         input.disabled = true;
       } else if (isCustom) {
         row.classList.add("isCustom");
         const v = (typeof overrideVal === "number") ? overrideVal : (overrideVal.price || 0);
-        input.value = Number.isFinite(v) ? fmtGold(v) : '';
+        input.value = Number.isFinite(v) ? fmtCoins(v) : '';
         input.disabled = false;
       } else {
         row.classList.add("isDefault");
@@ -3535,7 +3548,7 @@
         const def = Number.isFinite(Number(item?.defaultPrice))
           ? Number(item.defaultPrice)
           : ((typeof hrid === "string") ? getDefaultUnitPrice(hrid) : null);
-        if (typeof def === "number") input.placeholder = fmtGold(def);
+        if (typeof def === "number") input.placeholder = fmtCoins(def);
       }
 
       const inputWrap = document.createElement("div");
@@ -3602,7 +3615,7 @@
           if (ov && typeof ov === 'object') lootPriceOverrides[hrid] = { mode: 'Custom', price: Math.round(n) };
           else lootPriceOverrides[hrid] = Math.round(n);
         }
-        input.value = fmtGold(n);
+        input.value = fmtCoins(n);
         saveLootPriceOverrides(lootPriceOverrides);
         scheduleOverrideEvRecompute();
       };
