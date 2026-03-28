@@ -2238,11 +2238,22 @@
       const source = String(api?.getActiveApiSource?.() || api?.getPricingModel?.() || "official");
       void renderManualPanel(readZones(), source);
     });
+    document.addEventListener("dungeon:prices-refreshed", () => {
+      if (!toggle.checked) return;
+      const api = window.DungeonAPI || null;
+      const source = String(api?.getActiveApiSource?.() || api?.getPricingModel?.() || "official");
+      void renderManualPanel(readZones(), source);
+    });
     document.addEventListener("keys:import-pricing-changed", () => {
       if (toggle.checked) void refreshKeyPlannerImportActionState(readZones());
     });
     document.addEventListener("dungeon:pricing-context-changed", () => {
-      if (toggle.checked) void refreshKeyPlannerImportActionState(readZones());
+      if (!toggle.checked) return;
+      const zones = readZones();
+      const api = window.DungeonAPI || null;
+      const source = String(api?.getActiveApiSource?.() || api?.getPricingModel?.() || "official");
+      void renderManualPanel(zones, source);
+      void refreshKeyPlannerImportActionState(zones);
     });
     apply();
 

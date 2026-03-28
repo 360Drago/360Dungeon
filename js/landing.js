@@ -2351,7 +2351,8 @@
 
 
   // ===== Manual inputs validation + save =====
-  function validateAndSaveManual() {
+  function validateAndSaveManual(opts = {}) {
+    const { persist = true } = opts || {};
     const entryRaw = manualEntry ? manualEntry.value : "";
     const chestRaw = manualChest ? manualChest.value : "";
 
@@ -2375,6 +2376,8 @@
       const snapped = Math.round(clamped / 100000) * 100000;
       manualChestSlider.value = String(snapped);
     }
+
+    if (!persist) return;
 
     manualSaved = normalizeManualSavedState({ entryRaw, chestRaw, entry, chest });
     storageSetJson(KEY_MANUAL, manualSaved);
@@ -2410,8 +2413,20 @@
   }
 
 
-  if (manualEntry) manualEntry.addEventListener("input", validateAndSaveManual);
-  if (manualChest) manualChest.addEventListener("input", validateAndSaveManual);
+  function bindManualKeyInput(input) {
+    if (!input) return;
+    input.addEventListener("input", () => { validateAndSaveManual({ persist: false }); });
+    input.addEventListener("change", () => { validateAndSaveManual(); });
+    input.addEventListener("blur", () => { validateAndSaveManual(); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      validateAndSaveManual();
+    });
+  }
+
+  bindManualKeyInput(manualEntry);
+  bindManualKeyInput(manualChest);
 
   if (manualEntrySlider) {
     manualEntrySlider.addEventListener("input", () => {
@@ -2729,6 +2744,10 @@
     void renderLootOverrideList({ keepScroll: true });
     updateChestEvUI();
     updateAllSummaries();
+  });
+
+  document.addEventListener("dungeon:pricing-context-changed", () => {
+    void renderLootOverrideList({ keepScroll: true, ensureCache: true });
   });
 
   // ===== Official refresh timer =====
@@ -3536,10 +3555,29 @@
       inputWrap.appendChild(askBtn);
       inputWrap.appendChild(input);
 
-      input.addEventListener("input", () => {
+      const previewOverrideInput = () => {
         const raw = input.value;
         if (!raw.trim()) {
-          // Clear override
+          row.classList.remove("isInvalid");
+          row.classList.remove("isCustom");
+          row.classList.add("isDefault");
+          return;
+        }
+
+        const n = parseCompactNumber(raw);
+        if (n == null) {
+          row.classList.add("isInvalid");
+          return;
+        }
+
+        row.classList.remove("isInvalid");
+        row.classList.remove("isDefault");
+        row.classList.add("isCustom");
+      };
+
+      const commitOverrideInput = () => {
+        const raw = input.value;
+        if (!raw.trim()) {
           if (typeof hrid === "string") delete lootPriceOverrides[hrid];
           row.classList.remove("isInvalid");
           row.classList.remove("isCustom");
@@ -3564,9 +3602,14 @@
           if (ov && typeof ov === 'object') lootPriceOverrides[hrid] = { mode: 'Custom', price: Math.round(n) };
           else lootPriceOverrides[hrid] = Math.round(n);
         }
+        input.value = fmtGold(n);
         saveLootPriceOverrides(lootPriceOverrides);
         scheduleOverrideEvRecompute();
-      });
+      };
+
+      input.addEventListener("input", previewOverrideInput);
+      input.addEventListener("change", commitOverrideInput);
+      input.addEventListener("blur", commitOverrideInput);
 
       askBtn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -3578,9 +3621,10 @@
         scheduleOverrideEvRecompute();
       });
 
-      input.addEventListener("blur", () => {
-        const n = parseCompactNumber(input.value);
-        if (n != null) input.value = fmtGold(n);
+      input.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        commitOverrideInput();
       });
 
       // Reset-to-API button
