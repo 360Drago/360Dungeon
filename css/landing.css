@@ -1006,6 +1006,7 @@ body.stage-tier .options {
   max-height: 1200px;
   opacity: 1;
   transform: translateY(0px);
+  overflow: visible;
 }
 
 /* Pricing cards */
@@ -1067,10 +1068,98 @@ body.stage-tier .options {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.choiceJumpBtn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.82);
+  border-radius: 999px;
+  min-width: 34px;
+  height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.choiceJumpBtn:hover,
+.choiceJumpBtn:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 42%, rgba(255, 255, 255, 0.18));
+  background: color-mix(in srgb, var(--accent) 10%, rgba(255, 255, 255, 0.04));
+  color: rgba(255, 255, 255, 0.96);
+  transform: translateY(-1px);
+}
+
+.choiceJumpBtn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.choiceJumpBtn span {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
+.choiceJumpBtn.is-warning {
+  border-color: color-mix(in srgb, #facc15 62%, rgba(255, 255, 255, 0.20));
+  background: color-mix(in srgb, #facc15 12%, rgba(255, 255, 255, 0.03));
+  color: #fde68a;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #facc15 20%, transparent);
+}
+
+.choiceJumpBtn.is-warning:hover,
+.choiceJumpBtn.is-warning:focus-visible {
+  border-color: color-mix(in srgb, #facc15 80%, rgba(255, 255, 255, 0.24));
+  background: color-mix(in srgb, #facc15 18%, rgba(255, 255, 255, 0.05));
+  color: #fef3c7;
+}
+
 .choiceDesc {
   margin: 0;
   font-size: 13px;
   line-height: 1.35;
+}
+
+.choiceMetaRow {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.keyImportTip {
+  flex: 0 0 auto;
+  z-index: 120;
+}
+
+.tipHost.keyImportTip[data-tip]:not([data-tip=""])::after {
+  left: auto;
+  right: 0;
+  bottom: calc(100% + 10px);
+  transform: translateY(8px);
+  width: min(292px, calc(100vw - 32px));
+  max-width: min(292px, calc(100vw - 32px));
+  white-space: pre-line;
+  text-align: left;
+  z-index: 140;
+}
+
+.tipHost.keyImportTip[data-tip]:not([data-tip=""])::before {
+  left: auto;
+  right: 10px;
+  bottom: calc(100% + 4px);
+  transform: none;
+  z-index: 140;
+}
+
+.tipHost.keyImportTip[data-tip]:not([data-tip=""]):hover::after,
+.tipHost.keyImportTip[data-tip]:not([data-tip=""]):focus-within::after {
+  transform: translateY(0px);
 }
 
 /* Disable look (same vibe as refined chest) */
@@ -1957,7 +2046,8 @@ html[data-theme="light"] .statusLine .label,
 html[data-theme="light"] .lootQty,
 html[data-theme="light"] .lootSub,
 html[data-theme="light"] .choiceDesc,
-html[data-theme="light"] .choiceTag {
+html[data-theme="light"] .choiceTag,
+html[data-theme="light"] .choiceJumpBtn {
   color: var(--muted-color);
 }
 
