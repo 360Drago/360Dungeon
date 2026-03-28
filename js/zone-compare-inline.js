@@ -472,7 +472,7 @@
         transform:translateX(-50%) translateY(0);
       }
       #zoneCompareInline .zcInfoTipNeg { color:#ef4444; font-weight:700; }
-      #zoneCompareInline .zcPill { margin-top:12px; border:1px solid rgba(255,255,255,.12); border-radius:28px; background:rgba(255,255,255,.03); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:center; }
+      #zoneCompareInline .zcPill { margin-top:12px; border:1px solid rgba(255,255,255,.12); border-radius:28px; background:rgba(255,255,255,.03); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:end; }
       #zoneCompareInline .zcControlsGroup { min-width:0; width:max-content; max-width:100%; display:grid; gap:12px; justify-items:stretch; justify-self:start; align-items:center; }
       #zoneCompareInline .zcInputRail { width:auto; max-width:100%; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:18px 24px; }
       #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap { display:grid; grid-template-columns:auto auto; gap:12px; align-items:center; min-width:0; }
@@ -524,10 +524,10 @@
         background:color-mix(in srgb, #facc15 18%, rgba(255,255,255,.05));
         color:#fef3c7;
       }
-      #zoneCompareInline .zcAct { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:nowrap; align-self:center; min-width:332px; }
-      #zoneCompareInline .zcAct .simBtn { flex:1.28 1 0; min-width:0; height:50px; padding-inline:24px; }
-      #zoneCompareInline .zcAct .miniBtn { flex:1 1 0; min-width:0; height:42px; padding-inline:20px; }
-      #zoneCompareInline .zcAct > button { align-self:center; }
+      #zoneCompareInline .zcAct { display:flex; align-items:flex-end; justify-content:flex-end; gap:10px; flex-wrap:nowrap; align-self:end; min-width:248px; padding-bottom:2px; }
+      #zoneCompareInline .zcAct .simBtn { flex:0 0 140px; min-width:140px; height:42px; padding-inline:18px; }
+      #zoneCompareInline .zcAct .miniBtn { flex:0 0 104px; min-width:104px; height:36px; padding-inline:16px; }
+      #zoneCompareInline .zcAct > button { align-self:flex-end; }
       #zoneCompareInline .zcAct .miniBtn.zcResetArmed { border-color:rgba(248,113,113,.8); color:#fecaca; background:rgba(127,29,29,.25); font-size:11px; letter-spacing:.01em; transform:scale(.97); transform-origin:center; }
       #zoneCompareInline .zcStatus { margin-top:8px; }
       #zoneCompareInline .zcStatus.zcError { color:#ef4444; }
@@ -588,7 +588,7 @@
         #zoneCompareInline .zcPill { grid-template-columns:1fr; border-radius:22px; }
         #zoneCompareInline .zcControlsGroup { width:100%; }
         #zoneCompareInline .zcInputRail { width:100%; }
-        #zoneCompareInline .zcAct { justify-content:center; }
+        #zoneCompareInline .zcAct { justify-content:flex-end; }
       }
       @media (max-width:760px) {
         #zoneCompareInline .zcGrid { grid-template-columns:1fr; }
@@ -745,7 +745,7 @@
                 </span>
                 <span class="modeTglText">${t("ui.zoneCompareKeyPlannerValues", "Key Planner Crafting Values")}</span>
               </label>
-              <button id="zcKeyPlannerOpenBtn" class="zcJumpBtn" type="button" aria-label="${escAttr(t("ui.openKeysTab", "Open Keys tab"))}" title="${escAttr(t("ui.openKeysTab", "Open Keys tab"))}">
+              <button id="zcKeyPlannerOpenBtn" class="zcJumpBtn tipHost keyImportTip" type="button" data-tip="" aria-label="${escAttr(t("ui.openKeysTab", "Open Keys tab"))}" title="${escAttr(t("ui.openKeysTab", "Open Keys tab"))}">
                 <span aria-hidden="true">↗</span>
               </button>
             </div>
@@ -875,29 +875,58 @@
     }, 120);
   }
 
+  function buildZoneKeyPlannerSummaryTooltip(imported) {
+    const info = imported && typeof imported === "object" ? imported : {};
+    const apiSource = String(info.apiSource || "").trim().toLowerCase() === "other"
+      ? t("ui.mooket", "Mooket")
+      : t("ui.official", "Official");
+    const buyMode = String(info.buyMode || "").trim().toLowerCase() === "order"
+      ? t("ui.order", "Order")
+      : t("ui.instant", "Instant");
+    const artisan = info.artisanEnabled === false
+      ? t("ui.offShort", "Off")
+      : t("ui.onShort", "On");
+    const pouchEnabled = !!info.guzzlingPouchEnabled;
+    const pouchLevel = Math.max(0, Math.floor(Number(info.guzzlingPouchLevel) || 0));
+    const pouch = !pouchEnabled
+      ? t("ui.offShort", "Off")
+      : tf("ui.keysImportTooltipPouchOn", "On (+{level})", { level: pouchLevel });
+    return [
+      tf("ui.keysImportTooltipSource", "Source: {source}", { source: apiSource }),
+      tf("ui.keysImportTooltipBuyMode", "Buy mode: {mode}", { mode: buyMode }),
+      tf("ui.keysImportTooltipArtisan", "Artisan tea: {state}", { state: artisan }),
+      tf("ui.keysImportTooltipPouch", "Guzzling pouch: {state}", { state: pouch }),
+    ].join("\n");
+  }
+
   async function refreshKeyPlannerImportActionState(zones = readZones()) {
     const btn = byId("zcKeyPlannerOpenBtn");
     if (!btn) return;
     const token = ++keyPlannerActionToken;
     let needsWarning = false;
-    if (state.keyPlannerImport) {
-      const shared = getKeyPricingImportShared();
-      const source = getActiveApiSource();
-      const targetZones = Array.isArray(zones) && zones.length ? zones : readZones();
-      if (!shared?.ensureImportedPricing) {
+    let tooltipText = "";
+    const shared = getKeyPricingImportShared();
+    const source = getActiveApiSource();
+    const targetZones = Array.isArray(zones) && zones.length ? zones : readZones();
+    if (!shared?.ensureImportedPricing && !shared?.getCachedImportedPricing) {
+      if (state.keyPlannerImport) needsWarning = true;
+      btn.dataset.tip = "";
+      btn.classList.toggle("is-warning", needsWarning);
+      return;
+    }
+    for (const zone of targetZones) {
+      const imported = state.keyPlannerImport
+        ? await shared.ensureImportedPricing?.(zone.key, { apiSource: source })
+        : shared.getCachedImportedPricing?.(zone.key, { apiSource: source })
+          || await shared.ensureImportedPricing?.(zone.key, { apiSource: source });
+      if (token !== keyPlannerActionToken) return;
+      if (!tooltipText) tooltipText = buildZoneKeyPlannerSummaryTooltip(imported);
+      if (state.keyPlannerImport && (!imported?.ok || !hasPriceSet(imported))) {
         needsWarning = true;
-      } else {
-        for (const zone of targetZones) {
-          const imported = await shared.ensureImportedPricing(zone.key, { apiSource: source });
-          if (token !== keyPlannerActionToken) return;
-          if (!imported?.ok || !hasPriceSet(imported)) {
-            needsWarning = true;
-            break;
-          }
-        }
       }
     }
     if (token !== keyPlannerActionToken) return;
+    btn.dataset.tip = tooltipText;
     btn.classList.toggle("is-warning", needsWarning);
   }
 
