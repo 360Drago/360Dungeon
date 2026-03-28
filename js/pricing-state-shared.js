@@ -15,7 +15,10 @@
   }
 
   function normalizeModelFromSource(source) {
-    return (source === "manual" || source === "other") ? source : "official";
+    const normalized = String(source || "").trim().toLowerCase();
+    return (normalized === "manual" || normalized === "other" || normalized === "keyplanner" || normalized === "api")
+      ? normalized
+      : "api";
   }
 
   function normalizeApiSource(source) {
@@ -25,7 +28,7 @@
   function getEffectiveApiSource(model, opts = {}) {
     const activeApiSource = normalizeApiSource(opts?.activeApiSource);
     if (model === "other") return "other";
-    if (model === "manual") return activeApiSource;
+    if (model === "manual" || model === "keyplanner" || model === "api") return activeApiSource;
     return "official";
   }
 
@@ -78,7 +81,22 @@
       officialSaved,
       otherSaved,
       manualSaved,
+      keyImportPrices,
     } = opts || {};
+    if (model === "keyplanner") {
+      const imported = keyImportPrices && typeof keyImportPrices === "object"
+        ? keyImportPrices
+        : null;
+      return {
+        entryAsk: Number.isFinite(imported?.entryAsk) ? imported.entryAsk : -1,
+        entryBid: Number.isFinite(imported?.entryBid) ? imported.entryBid : -1,
+        chestKeyAsk: Number.isFinite(imported?.chestKeyAsk) ? imported.chestKeyAsk : -1,
+        chestKeyBid: Number.isFinite(imported?.chestKeyBid) ? imported.chestKeyBid : -1,
+      };
+    }
+    if (model === "api") {
+      return getSavedKeyPricesAB(getSavedByApiSource(getEffectiveApiSource("api", opts), opts), dungeonKey);
+    }
     if (model === "manual") {
       const base = getSavedKeyPricesAB(getSavedByApiSource(getEffectiveApiSource("manual", opts), opts), dungeonKey);
       return applyManualKeyOverrides(base, manualSaved);
@@ -88,7 +106,17 @@
   }
 
   function pricingModelLabel(model, opts = {}) {
+    if (model === "api") {
+      return normalizeApiSource(opts?.activeApiSource) === "other"
+        ? t("ui.mooket", "Mooket")
+        : t("ui.official", "Official");
+    }
     if (model === "official") return t("ui.official", "Official");
+    if (model === "keyplanner") {
+      return normalizeApiSource(opts?.activeApiSource) === "other"
+        ? t("ui.keysPlannerPlusMooket", "Keys Planner + Mooket")
+        : t("ui.keysPlannerPlusOfficial", "Keys Planner + Official");
+    }
     if (model === "manual") {
       return normalizeApiSource(opts?.activeApiSource) === "other"
         ? t("ui.manualPlusMooket", "Manual + Mooket")

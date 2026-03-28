@@ -55,6 +55,7 @@
         "#zoneCompareInline input[id^=\"zcMin-\"]",
         "#zoneCompareInline #zcLowDrop",
         "#zoneCompareInline #zcMirrorBackslot",
+        "#zoneCompareInline #zcKeyPlannerImport",
         "#zoneCompareInline #zcManualLootToggle",
         "#zoneCompareInline #zcManualLootFilter",
         "#zoneCompareInline #zcReset",
@@ -79,6 +80,7 @@
         "dungeon.zoneCompare.manualLoot.v1",
         "dungeon.zoneCompare.manualOverrides.v1",
         "dungeon.zoneCompare.mirrorBackslot.v1",
+        "dungeon.zoneCompare.keyPlannerImport.v1",
         "dungeon.foodPerDayByContext.v1",
         "dungeon.rangeEnabled",
         "dungeon.manualInputs",
@@ -103,7 +105,8 @@
     const SHARE_DEFAULT_FOOD = "10m";
     const SHARE_DUNGEON_KEYS = ["chimerical_den", "sinister_circus", "enchanted_fortress", "pirate_cove"];
     const SHARE_DUNGEON_INDEX = new Map(SHARE_DUNGEON_KEYS.map((key, index) => [key, index]));
-    const SHARE_PRICING_MODES = ["official", "manual", "other"];
+    // Append new pricing modes to preserve existing packed codes for older shares.
+    const SHARE_PRICING_MODES = ["official", "manual", "other", "api", "keyplanner"];
     const SHARE_PRICING_MODE_INDEX = new Map(SHARE_PRICING_MODES.map((key, index) => [key, index]));
     const SHARE_VIEW_MODES = ["quick", "advanced", "tokenShop", "keys", "zoneCompare"];
     const SHARE_VIEW_MODE_INDEX = new Map(SHARE_VIEW_MODES.map((key, index) => [key, index]));
@@ -183,12 +186,13 @@
     const SHARE_FLAG_ZONE_MANUAL_LOOT = 8;
     const SHARE_FLAG_MIRROR_BACKSLOT = 16;
     const SHARE_FLAG_RANGE_ENABLED = 32;
+    const SHARE_FLAG_ZONE_KEY_IMPORT = 64;
     const SHARE_LOOT_OVERRIDE_ASK = -1;
     const SHARE_LOOT_OVERRIDE_BID = -2;
     const SHARE_LOOT_OVERRIDE_CUSTOM = -3;
     const SHARE_DUNGEON_KEY_RE = /^[a-z0-9_]{1,64}$/;
     const SHARE_TIER_KEY_RE = /^T\d{1,2}$/;
-    const SHARE_PRICING_MODE_SET = new Set(["official", "manual", "other"]);
+    const SHARE_PRICING_MODE_SET = new Set(["official", "manual", "other", "api", "keyplanner"]);
     const DEFAULT_WHITELIST_TERMS = [
         "360Dungeon",
         "360Drago",
@@ -236,7 +240,7 @@
             // Section labels
             "ui.simOverview": "Calculator Overview",
             "ui.playerInfo": "Player Information",
-            "ui.pricingModel": "Pricing model",
+            "ui.pricingModel": "Key price override",
             "ui.officialApi": "Official API",
             "ui.manualInput": "Manual input",
             "ui.otherApi": "Mooket API",
@@ -258,7 +262,7 @@
             "ui.quickStartHintTokenShop": "Pick a dungeon for Token Shop",
             "ui.tierHintDefault": "Choose a tier to unlock options.",
             "ui.tierSelected": "Tier selected: {tier}",
-            "ui.refreshOfficialApiPrices": "Refresh Official API prices",
+            "ui.refreshOfficialApiPrices": "Refresh current API prices",
             "ui.combatBuff": "Combat buff",
             "ui.combatBuffHelp": "Current Combat Drop Quantity (Found in Game)",
             "ui.enterNumber0to20": "Enter a number from 0 to 20.",
@@ -285,6 +289,7 @@
             "ui.clear": "Clear",
             "ui.buff": "Buff",
             "ui.override": "Override",
+            "ui.planner": "Planner",
             "ui.acceptsFormats": "Accepts: 600,000 • 600000 • 600k • 6m",
             "ui.entryKeyPrice": "Entry Key Price",
             "ui.chestKeyPrice": "Chest Key Price",
@@ -293,6 +298,8 @@
             "ui.enterValueLike": "Enter a value like 600k or 6m.",
             "ui.lastRefresh": "Last checked",
             "ui.usesOfficialEndpoint": "Uses the official pricing endpoint.",
+            "ui.currentApiPrices": "Current API prices",
+            "ui.usesSelectedApiKeyPrices": "Uses instant-buy key prices from the API selected in the footer.",
             "ui.refreshNow": "Refresh now",
             "ui.instant": "Instant",
             "ui.order": "Order",
@@ -334,13 +341,15 @@
             "ui.refreshFailed": "Refresh failed. Please try again.",
             "ui.unknownRefreshState": "Unknown refresh state.",
             "ui.nowChoosePricing": "Now choose a pricing model.",
-            "ui.selectApiForDefaults": "Select Official API or Mooket API to view market defaults.",
+            "ui.selectApiForDefaults": "Select an API in the footer to view market defaults.",
             "ui.enableManualLootEdit": "Enable Manual loot prices to edit item values.",
             "ui.refreshPricingDefaults": "Refresh pricing to load market defaults for these items.",
             "ui.pricesShownMarket": "Prices shown are current market values (placeholder). Enter a value to override. Leave blank to use the market.",
             "ui.official": "Official",
             "ui.manualPlusOfficial": "Manual + Official",
+            "ui.keysPlannerPlusOfficial": "Keys Planner + Official",
             "ui.mooket": "Mooket",
+            "ui.keysPlannerPlusMooket": "Keys Planner + Mooket",
             "ui.market": "market",
             "ui.mixed": "mixed",
             "ui.refinedShards": "Refined Shards",
@@ -439,6 +448,9 @@
             "ui.putNumberHere": "Put your number in here",
             "ui.removeOnePercentDrops": "Remove 1% drops",
             "ui.backEqualsMirror": "Back = Mirror",
+            "ui.backSlotEqualsMirror": "Back Slot = Mirror",
+            "ui.backSlotDropsEqualMirrorPrice": "Back Slot Drops = Mirror Price",
+            "ui.zoneCompareKeyPlannerValues": "Key Planner Crafting Values",
             "ui.enterTierClearThenCalc": "Enter any tier clear times, then Calculate.",
             "ui.apiWarnings": "API warnings",
             "ui.noItemsMatchFilter": "No items match your filter.",
@@ -531,6 +543,25 @@
             "ui.manualKeysLine": "Manual keys + Official API • Entry/Chest accepted (k,m)",
             "ui.manualKeysWithSource": "Manual + {source}",
             "ui.manualKeysLineWithSource": "Manual keys + {source} API • Entry/Chest accepted (k,m)",
+            "ui.keysPlannerLineWithSource": "Keys planner + {source} API • Craft cost imported from Keys tab",
+            "ui.keysTabImport": "Keys tab import",
+            "ui.openKeysTab": "Open Keys tab",
+            "ui.keysImportDesc": "Uses your Keys tab crafting settings for per-dungeon entry and chest key costs.",
+            "ui.keysImportPreviewEmpty": "Uses Keys tab settings.",
+            "ui.keysImportPreviewWithPrices": "{source} • Entry {entry} • Chest {chest}",
+            "ui.keysImportTooltipTitle": "Keys planner import",
+            "ui.keysImportTooltipSource": "Source: {source}",
+            "ui.keysImportTooltipBuyMode": "Buy mode: {mode}",
+            "ui.keysImportTooltipArtisan": "Artisan tea: {state}",
+            "ui.keysImportTooltipPouch": "Guzzling pouch: {state}",
+            "ui.keysImportTooltipPouchOn": "On (+{level})",
+            "ui.keysImportTooltipEntry": "Entry key: {price}",
+            "ui.keysImportTooltipChest": "Chest key: {price}",
+            "ui.keysImportTooltipOverrides": "Manual fragment overrides: {count}",
+            "ui.keysImportUnavailable": "Keys planner pricing is not ready yet.",
+            "ui.keysImportRecipeMissing": "Missing key recipe data for the selected dungeon.",
+            "ui.keysImportMissingPrices": "Some key planner ingredients are missing prices.",
+            "ui.keysImportMissingMessage": "Keys planner pricing is unavailable. Check Keys tab settings and prices.",
             "ui.minutesWord": "Minutes",
             "ui.min": "Min",
             "ui.missingKeyPriceData": "Missing price data for selected dungeon keys.",
@@ -622,7 +653,7 @@
 
             "ui.simOverview": "模拟概览",
             "ui.playerInfo": "玩家信息",
-            "ui.pricingModel": "定价模型",
+            "ui.pricingModel": "钥匙价格覆盖",
             "ui.officialApi": "官方 API",
             "ui.manualInput": "手动输入",
             "ui.otherApi": "Mooket API",
@@ -644,7 +675,7 @@
             "ui.quickStartHintTokenShop": "选择地下城以查看代币商店",
             "ui.tierHintDefault": "选择一个层级以解锁选项。",
             "ui.tierSelected": "已选择层级：{tier}",
-            "ui.refreshOfficialApiPrices": "刷新官方 API 价格",
+            "ui.refreshOfficialApiPrices": "刷新当前 API 价格",
             "ui.combatBuff": "战斗增益",
             "ui.combatBuffHelp": "当前战斗掉落数量（游戏内）",
             "ui.enterNumber0to20": "请输入 0 到 20 的数字。",
@@ -671,6 +702,7 @@
             "ui.clear": "通关",
             "ui.buff": "增益",
             "ui.override": "覆盖",
+            "ui.planner": "规划器",
             "ui.acceptsFormats": "支持：600,000 • 600000 • 600k • 6m",
             "ui.entryKeyPrice": "入场钥匙价格",
             "ui.chestKeyPrice": "宝箱钥匙价格",
@@ -679,6 +711,8 @@
             "ui.enterValueLike": "请输入类似 600k 或 6m 的值。",
             "ui.lastRefresh": "上次检查",
             "ui.usesOfficialEndpoint": "使用官方定价接口。",
+            "ui.currentApiPrices": "当前 API 价格",
+            "ui.usesSelectedApiKeyPrices": "使用页脚所选 API 的即时购买钥匙价格。",
             "ui.refreshNow": "立即刷新",
             "ui.instant": "即买",
             "ui.order": "挂单",
@@ -705,13 +739,15 @@
             "ui.nextSetClearBuff": "下一步：设置通关时间和战斗增益。",
             "ui.overridesClearedDungeon": "此地下城的覆盖已清除。",
             "ui.nowChoosePricing": "现在请选择定价模型。",
-            "ui.selectApiForDefaults": "请选择官方 API 或 Mooket API 以查看市场默认值。",
+            "ui.selectApiForDefaults": "请在页脚选择一个 API 以查看市场默认值。",
             "ui.enableManualLootEdit": "启用手动掉落价格以编辑物品值。",
             "ui.refreshPricingDefaults": "刷新定价以加载这些物品的市场默认值。",
             "ui.pricesShownMarket": "显示的是当前市场价格（占位）。输入数值可覆盖，留空则使用市场价。",
             "ui.official": "官方",
             "ui.manualPlusOfficial": "手动 + 官方",
+            "ui.keysPlannerPlusOfficial": "钥匙规划器 + 官方",
             "ui.mooket": "Mooket",
+            "ui.keysPlannerPlusMooket": "钥匙规划器 + Mooket",
             "ui.market": "市场",
             "ui.mixed": "混合",
             "ui.refinedShards": "精炼碎片",
@@ -798,6 +834,9 @@
             "ui.putNumberHere": "在这里输入数值",
             "ui.removeOnePercentDrops": "去除 1% 掉落",
             "ui.backEqualsMirror": "背部 = 镜子",
+            "ui.backSlotEqualsMirror": "背部栏位 = 镜子",
+            "ui.backSlotDropsEqualMirrorPrice": "背部掉落 = 镜子价格",
+            "ui.zoneCompareKeyPlannerValues": "钥匙规划器制作成本",
             "ui.enterTierClearThenCalc": "输入任意层级通关时间后，点击计算。",
             "ui.apiWarnings": "API 警告",
             "ui.noItemsMatchFilter": "没有符合筛选条件的物品。",
@@ -921,6 +960,25 @@
             "ui.manualKeysLine": "手动钥匙 + 官方 API • 支持入场/宝箱（k,m）",
             "ui.manualKeysWithSource": "手动 + {source}",
             "ui.manualKeysLineWithSource": "手动钥匙 + {source} API • 支持入场/宝箱（k,m）",
+            "ui.keysPlannerLineWithSource": "钥匙规划器 + {source} API • 从钥匙页导入制造成本",
+            "ui.keysTabImport": "钥匙页导入",
+            "ui.openKeysTab": "打开钥匙页",
+            "ui.keysImportDesc": "使用你在钥匙页中的制作设置，为每个地下城导入入场钥匙和宝箱钥匙成本。",
+            "ui.keysImportPreviewEmpty": "使用钥匙页设置。",
+            "ui.keysImportPreviewWithPrices": "{source} • 入场 {entry} • 宝箱 {chest}",
+            "ui.keysImportTooltipTitle": "钥匙规划器导入",
+            "ui.keysImportTooltipSource": "来源：{source}",
+            "ui.keysImportTooltipBuyMode": "购买方式：{mode}",
+            "ui.keysImportTooltipArtisan": "工匠茶：{state}",
+            "ui.keysImportTooltipPouch": "暴食袋：{state}",
+            "ui.keysImportTooltipPouchOn": "开启（+{level}）",
+            "ui.keysImportTooltipEntry": "入场钥匙：{price}",
+            "ui.keysImportTooltipChest": "宝箱钥匙：{price}",
+            "ui.keysImportTooltipOverrides": "手动碎片覆盖：{count}",
+            "ui.keysImportUnavailable": "钥匙规划器价格尚未就绪。",
+            "ui.keysImportRecipeMissing": "缺少所选地下城的钥匙配方数据。",
+            "ui.keysImportMissingPrices": "钥匙规划器的部分材料缺少价格。",
+            "ui.keysImportMissingMessage": "钥匙规划器价格不可用。请检查钥匙页设置和价格。",
             "ui.minutesWord": "分钟",
             "ui.min": "分钟",
             "ui.missingKeyPriceData": "缺少所选地下城钥匙价格数据。",
@@ -1012,7 +1070,7 @@
 
             "ui.simOverview": "模擬概覽",
             "ui.playerInfo": "玩家資訊",
-            "ui.pricingModel": "定價模型",
+            "ui.pricingModel": "鑰匙價格覆蓋",
             "ui.officialApi": "官方 API",
             "ui.manualInput": "手動輸入",
             "ui.otherApi": "Mooket API",
@@ -1034,7 +1092,7 @@
             "ui.quickStartHintTokenShop": "選擇地下城以查看代幣商店",
             "ui.tierHintDefault": "選擇一個層級以解鎖選項。",
             "ui.tierSelected": "已選層級：{tier}",
-            "ui.refreshOfficialApiPrices": "刷新官方 API 價格",
+            "ui.refreshOfficialApiPrices": "刷新目前 API 價格",
             "ui.combatBuff": "戰鬥增益",
             "ui.combatBuffHelp": "目前戰鬥掉落數量（遊戲內）",
             "ui.enterNumber0to20": "請輸入 0 到 20 的數字。",
@@ -1061,6 +1119,7 @@
             "ui.clear": "通關",
             "ui.buff": "增益",
             "ui.override": "覆蓋",
+            "ui.planner": "規劃器",
             "ui.acceptsFormats": "支援：600,000 • 600000 • 600k • 6m",
             "ui.entryKeyPrice": "入場鑰匙價格",
             "ui.chestKeyPrice": "寶箱鑰匙價格",
@@ -1069,6 +1128,8 @@
             "ui.enterValueLike": "請輸入例如 600k 或 6m。",
             "ui.lastRefresh": "上次檢查",
             "ui.usesOfficialEndpoint": "使用官方定價端點。",
+            "ui.currentApiPrices": "目前 API 價格",
+            "ui.usesSelectedApiKeyPrices": "使用頁腳所選 API 的即時購買鑰匙價格。",
             "ui.refreshNow": "立即刷新",
             "ui.instant": "即買",
             "ui.order": "掛單",
@@ -1095,13 +1156,15 @@
             "ui.nextSetClearBuff": "下一步：設定通關時間與戰鬥增益。",
             "ui.overridesClearedDungeon": "此地下城的覆蓋已清除。",
             "ui.nowChoosePricing": "現在請選擇定價模型。",
-            "ui.selectApiForDefaults": "請選擇官方 API 或 Mooket API 以檢視市場預設值。",
+            "ui.selectApiForDefaults": "請在頁腳選擇一個 API 以檢視市場預設值。",
             "ui.enableManualLootEdit": "啟用手動掉落價格以編輯物品值。",
             "ui.refreshPricingDefaults": "刷新定價以載入這些物品的市場預設值。",
             "ui.pricesShownMarket": "顯示的是目前市場價格（佔位）。輸入數值可覆蓋，留白則使用市場價。",
             "ui.official": "官方",
             "ui.manualPlusOfficial": "手動 + 官方",
+            "ui.keysPlannerPlusOfficial": "鑰匙規劃器 + 官方",
             "ui.mooket": "Mooket",
+            "ui.keysPlannerPlusMooket": "鑰匙規劃器 + Mooket",
             "ui.market": "市場",
             "ui.mixed": "混合",
             "ui.refinedShards": "精煉碎片",
@@ -1188,6 +1251,9 @@
             "ui.putNumberHere": "在此輸入數值",
             "ui.removeOnePercentDrops": "移除 1% 掉落",
             "ui.backEqualsMirror": "背部 = 鏡子",
+            "ui.backSlotEqualsMirror": "背部欄位 = 鏡子",
+            "ui.backSlotDropsEqualMirrorPrice": "背部掉落 = 鏡子價格",
+            "ui.zoneCompareKeyPlannerValues": "鑰匙規劃器製作成本",
             "ui.enterTierClearThenCalc": "輸入任一層級通關時間後，點擊計算。",
             "ui.apiWarnings": "API 警告",
             "ui.noItemsMatchFilter": "沒有符合篩選條件的物品。",
@@ -1309,6 +1375,25 @@
             "ui.manualKeysLine": "手動鑰匙 + 官方 API • 支援入場/寶箱（k,m）",
             "ui.manualKeysWithSource": "手動 + {source}",
             "ui.manualKeysLineWithSource": "手動鑰匙 + {source} API • 支援入場/寶箱（k,m）",
+            "ui.keysPlannerLineWithSource": "鑰匙規劃器 + {source} API • 從鑰匙頁匯入製作成本",
+            "ui.keysTabImport": "鑰匙頁匯入",
+            "ui.openKeysTab": "打開鑰匙頁",
+            "ui.keysImportDesc": "使用你在鑰匙頁中的製作設定，為每個地下城匯加入場鑰匙與寶箱鑰匙成本。",
+            "ui.keysImportPreviewEmpty": "使用鑰匙頁設定。",
+            "ui.keysImportPreviewWithPrices": "{source} • 入場 {entry} • 寶箱 {chest}",
+            "ui.keysImportTooltipTitle": "鑰匙規劃器匯入",
+            "ui.keysImportTooltipSource": "來源：{source}",
+            "ui.keysImportTooltipBuyMode": "購買方式：{mode}",
+            "ui.keysImportTooltipArtisan": "工匠茶：{state}",
+            "ui.keysImportTooltipPouch": "暴食袋：{state}",
+            "ui.keysImportTooltipPouchOn": "開啟（+{level}）",
+            "ui.keysImportTooltipEntry": "入場鑰匙：{price}",
+            "ui.keysImportTooltipChest": "寶箱鑰匙：{price}",
+            "ui.keysImportTooltipOverrides": "手動碎片覆蓋：{count}",
+            "ui.keysImportUnavailable": "鑰匙規劃器價格尚未就緒。",
+            "ui.keysImportRecipeMissing": "缺少所選地下城的鑰匙配方資料。",
+            "ui.keysImportMissingPrices": "鑰匙規劃器的部分材料缺少價格。",
+            "ui.keysImportMissingMessage": "鑰匙規劃器價格不可用。請檢查鑰匙頁設定和價格。",
             "ui.minutesWord": "分鐘",
             "ui.min": "分鐘",
             "ui.missingKeyPriceData": "缺少所選地下城鑰匙價格資料。",
@@ -1753,7 +1838,7 @@
         }
         if (key === "dungeon.pricingModel") {
             const normalized = raw.trim().toLowerCase();
-            return SHARE_PRICING_MODE_SET.has(normalized) ? normalized : "official";
+            return SHARE_PRICING_MODE_SET.has(normalized) ? normalized : "api";
         }
         if (key === "dungeon.viewMode.v1") {
             const normalized = normalizeShareViewMode(raw);
@@ -2882,6 +2967,7 @@
         if (rawMap["dungeon.zoneCompare.removeLowDrops.v3"] === "1") flags |= SHARE_FLAG_LOW_DROP;
         if (rawMap["dungeon.zoneCompare.mirrorBackslot.v1"] === "1") flags |= SHARE_FLAG_MIRROR_BACKSLOT;
         if (rawMap["dungeon.rangeEnabled"] === "1") flags |= SHARE_FLAG_RANGE_ENABLED;
+        if (rawMap["dungeon.zoneCompare.keyPlannerImport.v1"] === "1") flags |= SHARE_FLAG_ZONE_KEY_IMPORT;
         return flags;
     }
 
@@ -2960,6 +3046,7 @@
         if (flags & SHARE_FLAG_ZONE_MANUAL_LOOT) out["dungeon.zoneCompare.manualLoot.v1"] = "1";
         if (flags & SHARE_FLAG_MIRROR_BACKSLOT) out["dungeon.zoneCompare.mirrorBackslot.v1"] = "1";
         if (flags & SHARE_FLAG_RANGE_ENABLED) out["dungeon.rangeEnabled"] = "1";
+        if (flags & SHARE_FLAG_ZONE_KEY_IMPORT) out["dungeon.zoneCompare.keyPlannerImport.v1"] = "1";
         if (food) out["dungeon.foodPerDay"] = food;
         if (zoneFood) out["dungeon.zoneCompare.food.v3"] = zoneFood;
         if (zoneBuff != null && zoneBuff !== 20) out["dungeon.zoneCompare.buff.v3"] = String(zoneBuff);
@@ -3368,7 +3455,7 @@
 
         setTextBySelector("#simpleInputsCard .simpleTitle", tt("ui.quickCalculator", "Quick Calculator"));
         setTextBySelector("#simpleOfficialRefreshBtn", tt("ui.refreshPrices", "Refresh prices"));
-        setTipBySelector("#simpleOfficialRefreshBtn", tt("ui.refreshOfficialApiPrices", "Refresh Official API prices"));
+        setTipBySelector("#simpleOfficialRefreshBtn", tt("ui.refreshOfficialApiPrices", "Refresh current API prices"));
         setLabelPrefix('label[for="simpleBuffCustom"]', `${tt("ui.combatBuff", "Combat buff")}: `);
         setTipBySelector('[data-tip="Current Combat Drop Quantity (Found in Game)"]', tt("ui.combatBuffHelp", "Current Combat Drop Quantity (Found in Game)"));
         setTextBySelector("#simpleBuffErr", tt("ui.enterNumber0to20", "Enter a number from 0 to 20."));
@@ -3418,7 +3505,7 @@
         setTextBySelector(".statusLine:nth-child(4) .label", tt("ui.clear", "Clear"));
         setTextBySelector(".statusLine:nth-child(5) .label", tt("ui.buff", "Buff"));
 
-        setTextBySelector('[data-panel="pricing"] h4', tt("ui.pricingModel", "Pricing model"));
+        setTextBySelector('[data-panel="pricing"] h4', tt("ui.pricingModel", "Key price override"));
         setTextBySelector('[data-choice="manual"] .choiceName', tt("ui.manualInput", "Manual input"));
         setTextBySelector('[data-choice="manual"] .choiceTag', tt("ui.override", "Override"));
         setTextBySelector('[data-choice="manual"] .choiceDesc', tt("ui.acceptsFormats", "Accepts: 600,000 • 600000 • 600k • 6m"));
@@ -3428,14 +3515,16 @@
         setAttrBySelector("#manualChest", "placeholder", tt("ui.chestPricePlaceholder", "e.g. 6m"));
         setTextBySelector("#manualEntryErr", tt("ui.enterValueLike", "Enter a value like 600k or 6m."));
         setTextBySelector("#manualChestErr", tt("ui.enterValueLike", "Enter a value like 600k or 6m."));
-        setTextBySelector('[data-choice="official"] .choiceName', tt("ui.officialApi", "Official API"));
-        setTextBySelector('[data-choice="official"] .choiceDesc', tt("ui.usesOfficialEndpoint", "Uses the official pricing endpoint."));
-        setLabelPrefix('[data-choice="official"] .choiceTag', `${tt("ui.lastRefresh", "Last checked")}: `);
-        setTextBySelector("#officialRefreshBtn", tt("ui.refreshNow", "Refresh now"));
-        setTextBySelector('[data-choice="other"] .choiceName', tt("ui.otherApi", "Mooket API"));
-        setTextBySelector('[data-choice="other"] .choiceTag', tt("ui.alt", "Alt"));
-        setTextBySelector('[data-choice="other"] .choiceDesc', tt("ui.secondaryEndpoint", "Secondary endpoint for comparisons."));
-        setTextBySelector("#otherRefreshBtn", tt("ui.refresh", "Refresh"));
+        setTextBySelector('[data-choice="keyplanner"] .choiceName', tt("ui.keysTabImport", "Keys tab import"));
+        setAttrBySelector("#keyPlannerOpenBtn", "aria-label", tt("ui.openKeysTab", "Open Keys tab"));
+        setAttrBySelector("#keyPlannerOpenBtn", "title", tt("ui.openKeysTab", "Open Keys tab"));
+        setTextBySelector('[data-choice="keyplanner"] .choiceDesc', tt("ui.keysImportDesc", "Uses your Keys tab crafting settings for per-dungeon entry and chest key costs."));
+        setTextBySelector("#keyPlannerPreview", tt("ui.keysImportPreviewEmpty", "Uses Keys tab settings."));
+        setAttrBySelector("#keyPlannerDetails", "aria-label", tt("ui.keysImportTooltipTitle", "Keys planner import"));
+        setTextBySelector('[data-choice="api"] .choiceName', tt("ui.currentApiPrices", "Current API prices"));
+        setTextBySelector('[data-choice="api"] .choiceTag', tt("ui.activeApi", "Active API"));
+        setTextBySelector('[data-choice="api"] .choiceDesc', tt("ui.usesSelectedApiKeyPrices", "Uses instant-buy key prices from the API selected in the footer."));
+        setTextBySelector("#officialRefreshBtn", tt("ui.refreshPrices", "Refresh prices"));
 
         setTextBySelector('[data-panel="run"] h4', tt("ui.playerInfo", "Player Information"));
         setTextBySelector("#runPill", tt("ui.needed", "Needed"));

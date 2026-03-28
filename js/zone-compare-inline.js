@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const STYLE_ID = "zoneCompareInlineStyleV14";
+  const STYLE_ID = "zoneCompareInlineStyleV15";
   const TIERS = ["T0", "T1", "T2"];
   const STORAGE = {
     minutes: "dungeon.zoneCompare.minutes.v3",
@@ -10,6 +10,7 @@
     food: "dungeon.zoneCompare.food.v3",
     lowDrop: "dungeon.zoneCompare.removeLowDrops.v3",
     mirrorBackslot: "dungeon.zoneCompare.mirrorBackslot.v1",
+    keyPlannerImport: "dungeon.zoneCompare.keyPlannerImport.v1",
   };
   const LEGACY_LOOT_STORAGE = {
     manualLoot: "dungeon.zoneCompare.manualLoot.v1",
@@ -48,6 +49,7 @@
   let calcRunToken = 0;
   let apiWarnings = [];
   let apiWarningsOpen = false;
+  let keyPlannerActionToken = 0;
   let minutesPlaceholderMeasureCanvas = null;
 
   function getShared(name) {
@@ -127,6 +129,10 @@
 
   function getMarketShared() {
     return getShared("DungeonMarketShared");
+  }
+
+  function getKeyPricingImportShared() {
+    return getShared("DungeonKeyPricingImportShared");
   }
 
   function storageCall(methodName, ...args) {
@@ -285,6 +291,7 @@
       manualLoot: !!sharedLootState.manualLoot,
       manualOverrides: sharedLootState.manualOverrides || {},
       mirrorBackslot: storageGet(STORAGE.mirrorBackslot) === "1",
+      keyPlannerImport: storageGet(STORAGE.keyPlannerImport) === "1",
     };
   }
 
@@ -298,6 +305,7 @@
       storageSet(STORAGE.lowDrop, state.lowDrop ? "1" : "0");
       persistSharedLootOverrideState();
       storageSet(STORAGE.mirrorBackslot, state.mirrorBackslot ? "1" : "0");
+      storageSet(STORAGE.keyPlannerImport, state.keyPlannerImport ? "1" : "0");
     } catch (_) { }
     if (emitLootOverrides) dispatchLootOverrideStateChanged();
   }
@@ -464,17 +472,61 @@
         transform:translateX(-50%) translateY(0);
       }
       #zoneCompareInline .zcInfoTipNeg { color:#ef4444; font-weight:700; }
-      #zoneCompareInline .zcPill { margin-top:12px; border:1px solid rgba(255,255,255,.12); border-radius:999px; background:rgba(255,255,255,.03); padding:10px 14px; display:grid; grid-template-columns:minmax(170px,0.65fr) minmax(230px,1fr) auto auto auto auto; gap:10px; align-items:center; }
-      #zoneCompareInline .zcBuffWrap { display:grid; grid-template-columns:auto 72px; gap:10px; align-items:center; }
-      #zoneCompareInline .zcFoodWrap { display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px; align-items:center; }
+      #zoneCompareInline .zcPill { margin-top:12px; border:1px solid rgba(255,255,255,.12); border-radius:28px; background:rgba(255,255,255,.03); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:center; }
+      #zoneCompareInline .zcControlsGroup { min-width:0; width:max-content; max-width:100%; display:grid; gap:12px; justify-items:stretch; justify-self:start; align-items:center; }
+      #zoneCompareInline .zcInputRail { width:auto; max-width:100%; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:18px 24px; }
+      #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap { display:grid; grid-template-columns:auto auto; gap:12px; align-items:center; min-width:0; }
       #zoneCompareInline .zcLabel { margin:0; color:var(--muted-color); font-size:13px; white-space:nowrap; }
       #zoneCompareInline .zcLabel span { color:var(--title-color); font-weight:700; }
-      #zoneCompareInline .zcCheckWrap { display:flex; align-items:center; }
+      #zoneCompareInline .zcInputRail .zcLabel { font-size:14px; }
+      #zoneCompareInline .zcBuffWrap .zcInput { width:92px; text-align:center; }
+      #zoneCompareInline .zcFoodWrap .zcInput { width:138px; max-width:min(138px, 100%); text-align:center; }
+      #zoneCompareInline .zcOptionsWrap { width:auto; max-width:100%; display:flex; flex-wrap:wrap; justify-content:flex-start; gap:10px; align-items:center; min-width:0; }
+      #zoneCompareInline .zcCheckWrap { display:flex; align-items:center; gap:8px; }
       #zoneCompareInline .zcCheck { margin:0; }
-      #zoneCompareInline .zcCheck .modeTglText { width:auto; }
-      #zoneCompareInline .zcAct { display:contents; }
-      #zoneCompareInline .zcAct .simBtn { min-width:132px; }
-      #zoneCompareInline .zcAct .miniBtn { min-width:94px; }
+      #zoneCompareInline .zcCheck .modeTglText { width:auto; white-space:nowrap; }
+      #zoneCompareInline .zcJumpBtn {
+        appearance:none;
+        border:1px solid rgba(255,255,255,.10);
+        background:rgba(255,255,255,.02);
+        color:rgba(255,255,255,.82);
+        border-radius:999px;
+        min-width:34px;
+        height:32px;
+        padding:0 10px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        cursor:pointer;
+        transition:border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
+      }
+      #zoneCompareInline .zcJumpBtn:hover,
+      #zoneCompareInline .zcJumpBtn:focus-visible {
+        border-color:color-mix(in srgb, var(--accent) 42%, rgba(255,255,255,.18));
+        background:color-mix(in srgb, var(--accent) 10%, rgba(255,255,255,.04));
+        color:rgba(255,255,255,.96);
+        transform:translateY(-1px);
+      }
+      #zoneCompareInline .zcJumpBtn:focus-visible {
+        outline:2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+        outline-offset:2px;
+      }
+      #zoneCompareInline .zcJumpBtn span { display:inline-block; font-size:15px; line-height:1; transform:translateY(-.5px); }
+      #zoneCompareInline .zcJumpBtn.is-warning {
+        border-color:color-mix(in srgb, #facc15 62%, rgba(255,255,255,.20));
+        background:color-mix(in srgb, #facc15 12%, rgba(255,255,255,.03));
+        color:#fde68a;
+        box-shadow:0 0 0 1px color-mix(in srgb, #facc15 20%, transparent);
+      }
+      #zoneCompareInline .zcJumpBtn.is-warning:hover,
+      #zoneCompareInline .zcJumpBtn.is-warning:focus-visible {
+        border-color:color-mix(in srgb, #facc15 80%, rgba(255,255,255,.24));
+        background:color-mix(in srgb, #facc15 18%, rgba(255,255,255,.05));
+        color:#fef3c7;
+      }
+      #zoneCompareInline .zcAct { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:nowrap; align-self:center; min-width:332px; }
+      #zoneCompareInline .zcAct .simBtn { flex:1.28 1 0; min-width:0; height:50px; padding-inline:24px; }
+      #zoneCompareInline .zcAct .miniBtn { flex:1 1 0; min-width:0; height:42px; padding-inline:20px; }
       #zoneCompareInline .zcAct > button { align-self:center; }
       #zoneCompareInline .zcAct .miniBtn.zcResetArmed { border-color:rgba(248,113,113,.8); color:#fecaca; background:rgba(127,29,29,.25); font-size:11px; letter-spacing:.01em; transform:scale(.97); transform-origin:center; }
       #zoneCompareInline .zcStatus { margin-top:8px; }
@@ -533,18 +585,34 @@
       }
       @media (max-width:1280px) {
         #zoneCompareInline .zcGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-        #zoneCompareInline .zcPill { grid-template-columns:1fr 1fr; border-radius:22px; }
+        #zoneCompareInline .zcPill { grid-template-columns:1fr; border-radius:22px; }
+        #zoneCompareInline .zcControlsGroup { width:100%; }
+        #zoneCompareInline .zcInputRail { width:100%; }
+        #zoneCompareInline .zcAct { justify-content:center; }
       }
       @media (max-width:760px) {
         #zoneCompareInline .zcGrid { grid-template-columns:1fr; }
         #zoneCompareInline .zcPill { grid-template-columns:1fr; border-radius:16px; }
-        #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap { grid-template-columns:1fr; gap:6px; }
-        #zoneCompareInline .zcAct { display:contents; }
+        #zoneCompareInline .zcControlsGroup { width:100%; }
+        #zoneCompareInline .zcInputRail { justify-content:flex-start; gap:12px; }
+        #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap { grid-template-columns:1fr; gap:6px; width:100%; }
+        #zoneCompareInline .zcFoodWrap .zcInput, #zoneCompareInline .zcBuffWrap .zcInput { width:100%; max-width:none; }
+        #zoneCompareInline .zcOptionsWrap { justify-content:flex-start; }
+        #zoneCompareInline .zcAct { justify-content:flex-start; flex-wrap:wrap; }
         #zoneCompareInline .zcAct .simBtn, #zoneCompareInline .zcAct .miniBtn { width:100%; min-width:0; }
       }
       html[data-theme="light"] #zoneCompareInline .zcCard { background:var(--surface-elev-1); border-color:var(--card-border-color); }
       html[data-theme="light"] #zoneCompareInline .zcAfter, html[data-theme="light"] #zoneCompareInline .zcTier { border-color:var(--neutral-border); }
       html[data-theme="light"] #zoneCompareInline .zcPill { background:rgba(255,255,255,.6); border-color:var(--neutral-border); }
+      html[data-theme="light"] #zoneCompareInline .zcJumpBtn { border-color:var(--neutral-border); background:rgba(255,255,255,.72); color:rgba(31,41,55,.78); }
+      html[data-theme="light"] #zoneCompareInline .zcJumpBtn:hover,
+      html[data-theme="light"] #zoneCompareInline .zcJumpBtn:focus-visible { color:rgba(31,41,55,.96); }
+      html[data-theme="light"] #zoneCompareInline .zcJumpBtn.is-warning {
+        border-color:color-mix(in srgb, #d97706 58%, rgba(148,163,184,.35));
+        background:color-mix(in srgb, #fef3c7 78%, white 22%);
+        color:#b45309;
+        box-shadow:0 0 0 1px color-mix(in srgb, #facc15 18%, transparent);
+      }
       html[data-theme="light"] #zoneCompareInline .lootOverrideSection {
         background:rgba(255,255,255,.74);
         border-color:var(--card-border-color);
@@ -639,31 +707,49 @@
     return `
       <div class="zcGrid">${zones.map(cardHtml).join("")}</div>
       <div class="zcPill">
-        <div class="zcBuffWrap">
-          <label class="zcLabel" for="zcBuff">${t("ui.combatBuffTitle", "Combat Buff")}</label>
-          <input id="zcBuff" class="zcInput" type="text" inputmode="decimal" placeholder="20" />
-        </div>
-        <div class="zcFoodWrap">
-          <label class="zcLabel" for="zcFood">${t("ui.consumablesDay", "Consumables / day")}</label>
-          <input id="zcFood" class="zcInput" type="text" inputmode="decimal" placeholder="${t("ui.putNumberHere", "Put your number in here")}" />
-        </div>
-        <div class="zcCheckWrap">
-          <input id="zcLowDrop" class="modeTglInp" type="checkbox" />
-          <label class="modeTgl zcCheck" for="zcLowDrop">
-            <span class="modeTglBox" aria-hidden="true">
-              <svg width="12" height="10" viewBox="0 0 12 10"><polyline points="1.5 6 4.5 9 10.5 1"></polyline></svg>
-            </span>
-            <span class="modeTglText">${t("ui.removeOnePercentDrops", "Remove 1% drops")}</span>
-          </label>
-        </div>
-        <div class="zcCheckWrap">
-          <input id="zcMirrorBackslot" class="modeTglInp" type="checkbox" />
-          <label class="modeTgl zcCheck" for="zcMirrorBackslot">
-            <span class="modeTglBox" aria-hidden="true">
-              <svg width="12" height="10" viewBox="0 0 12 10"><polyline points="1.5 6 4.5 9 10.5 1"></polyline></svg>
-            </span>
-            <span class="modeTglText">${t("ui.backEqualsMirror", "Back = Mirror")}</span>
-          </label>
+        <div class="zcControlsGroup">
+          <div class="zcInputRail">
+            <div class="zcBuffWrap">
+              <label class="zcLabel" for="zcBuff">${t("ui.combatBuffTitle", "Combat Buff")}</label>
+              <input id="zcBuff" class="zcInput" type="text" inputmode="decimal" placeholder="20" />
+            </div>
+            <div class="zcFoodWrap">
+              <label class="zcLabel" for="zcFood">${t("ui.consumablesDay", "Consumables / day")}</label>
+              <input id="zcFood" class="zcInput" type="text" inputmode="decimal" placeholder="${t("ui.putNumberHere", "Put your number in here")}" />
+            </div>
+          </div>
+          <div class="zcOptionsWrap">
+            <div class="zcCheckWrap">
+              <input id="zcLowDrop" class="modeTglInp" type="checkbox" />
+              <label class="modeTgl zcCheck" for="zcLowDrop">
+                <span class="modeTglBox" aria-hidden="true">
+                  <svg width="12" height="10" viewBox="0 0 12 10"><polyline points="1.5 6 4.5 9 10.5 1"></polyline></svg>
+                </span>
+                <span class="modeTglText">${t("ui.removeOnePercentDrops", "Remove 1% drops")}</span>
+              </label>
+            </div>
+            <div class="zcCheckWrap">
+              <input id="zcMirrorBackslot" class="modeTglInp" type="checkbox" />
+              <label class="modeTgl zcCheck" for="zcMirrorBackslot">
+                <span class="modeTglBox" aria-hidden="true">
+                  <svg width="12" height="10" viewBox="0 0 12 10"><polyline points="1.5 6 4.5 9 10.5 1"></polyline></svg>
+                </span>
+                <span class="modeTglText">${t("ui.backSlotEqualsMirror", "Back Slot = Mirror")}</span>
+              </label>
+            </div>
+            <div class="zcCheckWrap">
+              <input id="zcKeyPlannerImport" class="modeTglInp" type="checkbox" />
+              <label class="modeTgl zcCheck" for="zcKeyPlannerImport">
+                <span class="modeTglBox" aria-hidden="true">
+                  <svg width="12" height="10" viewBox="0 0 12 10"><polyline points="1.5 6 4.5 9 10.5 1"></polyline></svg>
+                </span>
+                <span class="modeTglText">${t("ui.zoneCompareKeyPlannerValues", "Key Planner Crafting Values")}</span>
+              </label>
+              <button id="zcKeyPlannerOpenBtn" class="zcJumpBtn" type="button" aria-label="${escAttr(t("ui.openKeysTab", "Open Keys tab"))}" title="${escAttr(t("ui.openKeysTab", "Open Keys tab"))}">
+                <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </div>
         </div>
         <div class="zcAct">
           <button id="zcReset" class="miniBtn" type="button">${t("ui.reset", "Reset")}</button>
@@ -761,6 +847,58 @@
       if (base >= 100 && base <= 9999) return `${match[1]}k`;
     }
     return cleaned;
+  }
+
+  function getActiveApiSource() {
+    const api = window.DungeonAPI || null;
+    return String((api?.getActiveApiSource?.() || api?.getPricingModel?.() || "official"));
+  }
+
+  async function openKeysPlannerFromZoneCompare() {
+    try {
+      await window.KeysInline?.ensurePlannerOpen?.();
+    } catch (_) { }
+    const toggle = byId("keysToggle");
+    if (toggle && !toggle.checked) {
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    window.setTimeout(() => {
+      const planner = document.getElementById("keysPlannerPanel")
+        || document.querySelector("#keysInline .keysPlannerShell")
+        || document.getElementById("keysInline");
+      try {
+        planner?.scrollIntoView({ block: "start", behavior: "smooth" });
+      } catch (_) {
+        try { planner?.scrollIntoView(); } catch (_) { }
+      }
+    }, 120);
+  }
+
+  async function refreshKeyPlannerImportActionState(zones = readZones()) {
+    const btn = byId("zcKeyPlannerOpenBtn");
+    if (!btn) return;
+    const token = ++keyPlannerActionToken;
+    let needsWarning = false;
+    if (state.keyPlannerImport) {
+      const shared = getKeyPricingImportShared();
+      const source = getActiveApiSource();
+      const targetZones = Array.isArray(zones) && zones.length ? zones : readZones();
+      if (!shared?.ensureImportedPricing) {
+        needsWarning = true;
+      } else {
+        for (const zone of targetZones) {
+          const imported = await shared.ensureImportedPricing(zone.key, { apiSource: source });
+          if (token !== keyPlannerActionToken) return;
+          if (!imported?.ok || !hasPriceSet(imported)) {
+            needsWarning = true;
+            break;
+          }
+        }
+      }
+    }
+    if (token !== keyPlannerActionToken) return;
+    btn.classList.toggle("is-warning", needsWarning);
   }
 
   function parseFood(raw) {
@@ -1342,8 +1480,18 @@
     const evApi = window.DungeonChestEV || null;
     if (!api || !evApi?.computeDungeonChestEV) return { error: t("ui.calcModulesNotReady", "Calculation modules are not ready.") };
 
-    const prices = api.getKeyPricesAB?.(zone.key, source) || null;
     const warnings = [];
+    let prices = null;
+    if (state.keyPlannerImport) {
+      const imported = await getKeyPricingImportShared()?.ensureImportedPricing?.(zone.key, { apiSource: source });
+      prices = imported || null;
+      if (!prices?.ok || !hasPriceSet(prices)) {
+        warnings.push(`${zone.title}: ${prices?.errorMessage || t("ui.keysImportMissingMessage", "Keys planner pricing is unavailable. Check Keys tab settings and prices.")}`);
+        return { error: t("ui.missingKeyPrices", "Missing key prices."), warnings };
+      }
+    } else {
+      prices = api.getKeyPricesAB?.(zone.key, source) || null;
+    }
     if (!hasPriceSet(prices)) {
       warnings.push(`${zone.title}: ${t("ui.keyPricesMissing", "key prices are missing or -1.")}`);
       return { error: t("ui.missingKeyPrices", "Missing key prices."), warnings };
@@ -1647,12 +1795,14 @@
     const food = byId("zcFood");
     const low = byId("zcLowDrop");
     const mirror = byId("zcMirrorBackslot");
+    const keyPlanner = byId("zcKeyPlannerImport");
     const manual = byId("zcManualLootToggle");
 
     if (buff) buff.value = String(clampBuff(state.buff));
     if (food) food.value = asText(state.food || "");
     if (low) low.checked = !!state.lowDrop;
     if (mirror) mirror.checked = !!state.mirrorBackslot;
+    if (keyPlanner) keyPlanner.checked = !!state.keyPlannerImport;
     if (manual) manual.checked = !!state.manualLoot;
 
     zones.forEach((z) => {
@@ -1669,6 +1819,7 @@
     state.food = "10m";
     state.lowDrop = false;
     state.mirrorBackslot = false;
+    state.keyPlannerImport = false;
     state.manualLoot = false;
     zones.forEach((z) => {
       ensureZoneState(z.key);
@@ -1697,11 +1848,14 @@
     if (lowEl) lowEl.checked = false;
     const mirrorEl = byId("zcMirrorBackslot");
     if (mirrorEl) mirrorEl.checked = false;
+    const keyPlannerEl = byId("zcKeyPlannerImport");
+    if (keyPlannerEl) keyPlannerEl.checked = false;
     const manualEl = byId("zcManualLootToggle");
     if (manualEl) manualEl.checked = false;
     persistState({ emitLootOverrides: true });
     renderApiWarnings([]);
     if (source) void renderManualPanel(zones, source);
+    void refreshKeyPlannerImportActionState(zones);
     setStatus(t("ui.clearedZoneCompareInputs", "Cleared zone compare inputs."));
   }
 
@@ -1711,13 +1865,15 @@
     const food = byId("zcFood");
     const low = byId("zcLowDrop");
     const mirror = byId("zcMirrorBackslot");
+    const keyPlanner = byId("zcKeyPlannerImport");
     const manual = byId("zcManualLootToggle");
     const manualFilter = byId("zcManualLootFilter");
     const manualReset = byId("zcLootOverrideResetBtn");
     const warnToggle = byId("zcWarnToggle");
     const calc = byId("zcCalc");
     const reset = byId("zcReset");
-    const source = String((window.DungeonAPI?.getActiveApiSource?.() || window.DungeonAPI?.getPricingModel?.() || "official"));
+    const keyPlannerOpenBtn = byId("zcKeyPlannerOpenBtn");
+    const source = getActiveApiSource();
     bindInfoTipInteractions(panel);
     const zoneIndexByKey = new Map(zones.map((z, i) => [z.key, i]));
     const tierIndexByKey = new Map(TIERS.map((t, i) => [t, i]));
@@ -1779,6 +1935,22 @@
       mirror.addEventListener("change", () => {
         state.mirrorBackslot = !!mirror.checked;
         persistState();
+      });
+    }
+
+    if (keyPlanner) {
+      keyPlanner.addEventListener("change", () => {
+        state.keyPlannerImport = !!keyPlanner.checked;
+        persistState();
+        void refreshKeyPlannerImportActionState(zones);
+      });
+    }
+
+    if (keyPlannerOpenBtn) {
+      keyPlannerOpenBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        await openKeysPlannerFromZoneCompare();
       });
     }
 
@@ -1862,6 +2034,7 @@
         state.food = "10m";
         state.lowDrop = false;
         state.mirrorBackslot = false;
+        state.keyPlannerImport = false;
         state.manualLoot = false;
 
         const buffEl = byId("zcBuff");
@@ -1872,11 +2045,14 @@
         if (lowEl) lowEl.checked = false;
         const mirrorEl = byId("zcMirrorBackslot");
         if (mirrorEl) mirrorEl.checked = false;
+        const keyPlannerEl = byId("zcKeyPlannerImport");
+        if (keyPlannerEl) keyPlannerEl.checked = false;
         const manualEl = byId("zcManualLootToggle");
         if (manualEl) manualEl.checked = false;
 
         persistState({ emitLootOverrides: true });
         void renderManualPanel(zones, source);
+        void refreshKeyPlannerImportActionState(zones);
       };
       const clearResetArm = () => {
         resetArmed = false;
@@ -1932,7 +2108,8 @@
     window.requestAnimationFrame(() => syncZoneMinutePlaceholders(panel));
     bindEvents(zones);
     renderApiWarnings(apiWarnings);
-    const source = String((window.DungeonAPI?.getActiveApiSource?.() || window.DungeonAPI?.getPricingModel?.() || "official"));
+    void refreshKeyPlannerImportActionState(zones);
+    const source = getActiveApiSource();
     await renderManualPanel(zones, source);
     try {
       document.dispatchEvent(new CustomEvent("zone-compare:rendered"));
@@ -1984,6 +2161,12 @@
     }, { passive: true });
     document.addEventListener("site:lang-changed", () => {
       if (toggle.checked) void render();
+    });
+    document.addEventListener("keys:import-pricing-changed", () => {
+      if (toggle.checked) void refreshKeyPlannerImportActionState(readZones());
+    });
+    document.addEventListener("dungeon:pricing-context-changed", () => {
+      if (toggle.checked) void refreshKeyPlannerImportActionState(readZones());
     });
     apply();
 

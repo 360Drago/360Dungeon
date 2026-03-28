@@ -102,6 +102,10 @@
     return getShared("DungeonPricingStateShared");
   }
 
+  function getKeyPricingImportShared() {
+    return getShared("DungeonKeyPricingImportShared");
+  }
+
   function getNumberShared() {
     return getShared("DungeonNumberShared");
   }
@@ -371,7 +375,22 @@
     if (!calcState.overridesMap || typeof calcState.overridesMap !== "object") calcState.overridesMap = {};
     calcState.plannerImport = normalizePlannerImport(calcState.plannerImport);
     persistCalcState();
+    emitKeyImportChanged({ reason: "calc-state" });
     return calcState;
+  }
+
+  function emitKeyImportChanged(detail = {}) {
+    const shared = getKeyPricingImportShared();
+    if (typeof shared?.clearCache === "function") shared.clearCache();
+    if (typeof shared?.emitChanged === "function") {
+      shared.emitChanged(detail);
+      return;
+    }
+    try {
+      document.dispatchEvent(new CustomEvent("keys:import-pricing-changed", {
+        detail: { ...(detail || {}) },
+      }));
+    } catch (_) { }
   }
 
   function recipeTargetMapKey(recipeOrUiKey, keyTypeRaw = null) {
@@ -1235,6 +1254,7 @@
         [apiSource]: nextTs,
       };
       try { storageSetItem(keysRefreshStorageKey(apiSource), String(nextTs)); } catch (_) { }
+      emitKeyImportChanged({ reason: "market-cache-updated", apiSource });
       return json;
     })();
 
@@ -1711,6 +1731,20 @@
     return String(storageGetItem("dungeon.selectedDungeon") || "").trim();
   }
 
+  function resolveKeysSelectedRecipe(recipes) {
+    const list = Array.isArray(recipes) ? recipes : [];
+    const selectedDungeonKey = getSelectedDungeonKey();
+    let selectedRecipe = list.find((recipe) => recipe.uiKey === selectedDungeonKey) || null;
+    let effectiveDungeonKey = selectedDungeonKey;
+    let autoSelected = false;
+    if (!selectedRecipe && list.length) {
+      selectedRecipe = list[0] || null;
+      effectiveDungeonKey = String(selectedRecipe?.uiKey || "").trim();
+      autoSelected = !!effectiveDungeonKey && !selectedDungeonKey;
+    }
+    return { selectedDungeonKey: effectiveDungeonKey, selectedRecipe, autoSelected };
+  }
+
   function plannerImportSummary(recipe, plannerImport) {
     const payload = normalizePlannerImport(plannerImport);
     if (!recipe || !payload || payload.uiKey !== recipe.uiKey) return "";
@@ -1811,6 +1845,91 @@
       totalCost,
       fragments,
     };
+  }
+
+  function countFragmentOverridesForDungeon(uiKey, overridesMap = ensureCalcState().overridesMap) {
+    const byDungeon = overridesMap && typeof overridesMap === "object" ? overridesMap[uiKey] : null;
+    return byDungeon && typeof byDungeon === "object" ? Object.keys(byDungeon).length : 0;
+  }
+
+  function computeImportedPriceForRecipe(recipe, market, options = {}) {
+    if (!recipe || !market) return null;
+    const useBid = normalizeBuyMode(options.buyMode) === BUY_MODE_ORDER;
+    let total = 0;
+    for (const fragment of (recipe.fragments || [])) {
+      const quote = ingredientPrice(fragment.itemHrid, market);
+      const overrideRaw = getFragmentOverrideRaw(recipe.uiKey, fragment.itemHrid, options.overridesMap);
+      const overrideValue = parseCompactNumberValue(overrideRaw);
+      const unitPrice = Number.isFinite(overrideValue) ? overrideValue : (useBid ? quote.bid : quote.ask);
+      const unitCount = ingredientUnitCount(recipe, fragment, options);
+      if (!Number.isFinite(unitPrice) || !Number.isFinite(unitCount)) return null;
+      total += unitPrice * unitCount;
+    }
+    return Number.isFinite(total) ? total : null;
+  }
+
+  function buildImportedPricingSnapshot(dungeonKey, market, apiSource, options = {}, recipesByType = {}) {
+    const uiKey = String(dungeonKey || "").trim();
+    const state = {
+      ...ensureCalcState(),
+      ...(options || {}),
+    };
+    const entryRecipes = Array.isArray(recipesByType.entryRecipes) ? recipesByType.entryRecipes : [];
+    const chestRecipes = Array.isArray(recipesByType.chestRecipes) ? recipesByType.chestRecipes : [];
+    const entryRecipe = entryRecipes.find((recipe) => recipe?.uiKey === uiKey) || null;
+    const chestRecipe = chestRecipes.find((recipe) => recipe?.uiKey === uiKey) || null;
+    const entryPrice = computeImportedPriceForRecipe(entryRecipe, market, state);
+    const chestKeyPrice = computeImportedPriceForRecipe(chestRecipe, market, state);
+    let errorMessage = "";
+    if (!uiKey) {
+      errorMessage = t("ui.noDungeonSelected", "No dungeon selected.");
+    } else if (!market) {
+      errorMessage = t("ui.keysImportUnavailable", "Keys planner pricing is not ready yet.");
+    } else if (!entryRecipe || !chestRecipe) {
+      errorMessage = t("ui.keysImportRecipeMissing", "Missing key recipe data for the selected dungeon.");
+    } else if (!Number.isFinite(entryPrice) || !Number.isFinite(chestKeyPrice)) {
+      errorMessage = t("ui.keysImportMissingPrices", "Some key planner ingredients are missing prices.");
+    }
+    return {
+      ok: Number.isFinite(entryPrice) && Number.isFinite(chestKeyPrice),
+      ready: !!market,
+      dungeonKey: uiKey,
+      apiSource,
+      buyMode: normalizeBuyMode(state.buyMode),
+      artisanEnabled: normalizeArtisanEnabled(state.artisanEnabled),
+      guzzlingPouchEnabled: normalizeGuzzlingPouchEnabled(state.guzzlingPouchEnabled),
+      guzzlingPouchLevel: normalizeGuzzlingPouchLevel(state.guzzlingPouchLevel),
+      overrideCount: countFragmentOverridesForDungeon(uiKey, state.overridesMap),
+      entryPrice,
+      chestKeyPrice,
+      errorMessage,
+    };
+  }
+
+  async function ensureImportedPricingForDungeon(dungeonKey, opts = {}) {
+    const uiKey = String(dungeonKey || "").trim() || getSelectedDungeonKey();
+    const apiSource = normalizeApiSource(opts.apiSource || getActiveApiSource());
+    const market = await ensureMarketData({ force: !!opts.force, apiSource });
+    const [entryRecipes, chestRecipes] = await Promise.all([
+      buildRecipesFromInit(KEY_TYPE_ENTRY),
+      buildRecipesFromInit(KEY_TYPE_CHEST),
+    ]);
+    return buildImportedPricingSnapshot(uiKey, market, apiSource, ensureCalcState(), {
+      entryRecipes,
+      chestRecipes,
+    });
+  }
+
+  function getCachedImportedPricingForDungeon(dungeonKey, opts = {}) {
+    const uiKey = String(dungeonKey || "").trim() || getSelectedDungeonKey();
+    const apiSource = normalizeApiSource(opts.apiSource || getActiveApiSource());
+    const market = getCachedMarketData(apiSource);
+    const entryRecipes = Array.isArray(recipeCache?.[KEY_TYPE_ENTRY]) ? recipeCache[KEY_TYPE_ENTRY] : [];
+    const chestRecipes = Array.isArray(recipeCache?.[KEY_TYPE_CHEST]) ? recipeCache[KEY_TYPE_CHEST] : [];
+    return buildImportedPricingSnapshot(uiKey, market, apiSource, ensureCalcState(), {
+      entryRecipes,
+      chestRecipes,
+    });
   }
 
   function calculatorPanelHtml(recipe) {
@@ -2322,6 +2441,15 @@
     return true;
   }
 
+  async function ensurePlannerOpen() {
+    setCalcState({ expanded: true });
+    const toggle = document.getElementById("keysToggle");
+    if (toggle?.checked) {
+      await render();
+    }
+    return true;
+  }
+
   async function loadKeysPanelData() {
     let recipes = [];
     let market = null;
@@ -2469,8 +2597,7 @@
     injectStyleOnce();
 
     const { recipes, market } = await loadKeysPanelData();
-    const selectedDungeonKey = getSelectedDungeonKey();
-    const selectedRecipe = recipes.find((recipe) => recipe.uiKey === selectedDungeonKey) || null;
+    const { selectedDungeonKey, selectedRecipe, autoSelected } = resolveKeysSelectedRecipe(recipes);
 
     panel.innerHTML = `
       <div class="keysShell">
@@ -2482,12 +2609,28 @@
 
     bindZoneCardButtons(panel, recipes, market);
     renderPlannerShell(panel, selectedRecipe, recipes, market);
+    if (autoSelected && selectedDungeonKey) {
+      window.setTimeout(() => {
+        if (getSelectedDungeonKey()) return;
+        selectDungeon(selectedDungeonKey);
+      }, 0);
+    }
   }
 
   function bind() {
     const toggle = document.getElementById("keysToggle");
     const panel = document.getElementById("keysInline");
     if (!toggle || !panel) return;
+
+    const keyImportShared = getKeyPricingImportShared();
+    if (typeof keyImportShared?.registerProvider === "function") {
+      keyImportShared.registerProvider({
+        ensureImportedPricing: ensureImportedPricingForDungeon,
+        getCachedImportedPricing: getCachedImportedPricingForDungeon,
+      });
+    }
+    void buildRecipesFromInit(KEY_TYPE_ENTRY).catch(() => null);
+    void buildRecipesFromInit(KEY_TYPE_CHEST).catch(() => null);
 
     const apply = () => {
       document.body.classList.toggle("keys-active", !!toggle.checked);
@@ -2510,16 +2653,22 @@
         return;
       }
       const recipes = recipeCache?.[normalizeKeyType(ensureCalcState().selectedType)] || [];
-      const selectedDungeonKey = getSelectedDungeonKey();
+      const { selectedDungeonKey, selectedRecipe, autoSelected } = resolveKeysSelectedRecipe(recipes);
       updateZoneCardSelection(panel, selectedDungeonKey);
-      const selectedRecipe = recipes.find((recipe) => recipe.uiKey === selectedDungeonKey) || null;
       renderPlannerShell(panel, selectedRecipe, recipes, getCachedMarketData());
+      if (autoSelected && selectedDungeonKey) {
+        window.setTimeout(() => {
+          if (getSelectedDungeonKey()) return;
+          selectDungeon(selectedDungeonKey);
+        }, 0);
+      }
     });
     apply();
 
     window.KeysInline = {
       render,
       isActive: () => !!toggle.checked,
+      ensurePlannerOpen,
       importPlannerPayload,
       getRelevantPricingHrids,
     };

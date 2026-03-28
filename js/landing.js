@@ -86,7 +86,13 @@
 
   function sanitizePricingModel(raw) {
     const model = String(raw == null ? "" : raw).trim().toLowerCase();
-    return normalizeModelFromSource(model);
+    if (model === "manual" || model === "keyplanner" || model === "api") return model;
+    if (model === "official" || model === "other") return "api";
+    return "api";
+  }
+
+  function isKeyPlannerModel(model = pricingModel) {
+    return sanitizePricingModel(model) === "keyplanner";
   }
 
   function sanitizeApiSource(raw) {
@@ -138,6 +144,7 @@
   const officialRefreshStamp = document.getElementById("officialRefreshStamp");
   const officialRefreshBtn = document.getElementById("officialRefreshBtn");
   const officialRefreshRow = officialRefreshBtn?.closest(".row") || null;
+  const apiPricingChoiceTag = document.getElementById("apiPricingChoiceTag");
 
   const otherRefreshBtn = document.getElementById("otherRefreshBtn");
   const otherStatus = document.getElementById("otherStatus");
@@ -157,6 +164,9 @@
 
   const manualEntrySlider = document.getElementById("manualEntrySlider");
   const manualChestSlider = document.getElementById("manualChestSlider");
+  const keyPlannerPreview = document.getElementById("keyPlannerPreview");
+  const keyPlannerDetails = document.getElementById("keyPlannerDetails");
+  const keyPlannerOpenBtn = document.getElementById("keyPlannerOpenBtn");
 
   // Run inputs
   const clearTime = document.getElementById("clearTime");
@@ -357,6 +367,10 @@
     return getShared("DungeonPricingStateShared");
   }
 
+  function getKeyPricingImportShared() {
+    return getShared("DungeonKeyPricingImportShared");
+  }
+
   function getPricingRefreshShared() {
     return getShared("DungeonPricingRefreshShared");
   }
@@ -522,7 +536,7 @@
       return shared.getEffectiveApiSource(model, { activeApiSource });
     }
     if (model === "other") return "other";
-    if (model === "manual") return activeApiSource;
+    if (model === "manual" || model === "keyplanner" || model === "api") return activeApiSource;
     return "official";
   }
 
@@ -532,6 +546,33 @@
       return shared.getSavedByApiSource(apiSource, { officialSaved, otherSaved });
     }
     return apiSource === "other" ? otherSaved : officialSaved;
+  }
+
+  function getCachedKeyPlannerImport(dungeonKey, opts = {}) {
+    const shared = getKeyPricingImportShared();
+    const apiSource = sanitizeApiSource(opts.apiSource || activeApiSource);
+    if (shared && typeof shared.getCachedImportedPricing === "function") {
+      return shared.getCachedImportedPricing(dungeonKey, { apiSource });
+    }
+    return {
+      ok: false,
+      ready: false,
+      apiSource,
+      entryAsk: -1,
+      entryBid: -1,
+      chestKeyAsk: -1,
+      chestKeyBid: -1,
+      tooltip: i18nT("ui.keysImportUnavailable", "Keys planner pricing is not ready yet."),
+    };
+  }
+
+  async function ensureKeyPlannerImport(dungeonKey, opts = {}) {
+    const shared = getKeyPricingImportShared();
+    const apiSource = sanitizeApiSource(opts.apiSource || activeApiSource);
+    if (shared && typeof shared.ensureImportedPricing === "function") {
+      return await shared.ensureImportedPricing(dungeonKey, { apiSource, force: !!opts.force });
+    }
+    return getCachedKeyPlannerImport(dungeonKey, { apiSource });
   }
 
   function getSavedRecordByModel(dungeonKey, model = pricingModel) {
@@ -1001,7 +1042,7 @@
     const list = items.join(` ${i18nT("ui.and", "and")} `);
     return i18nF(
       "ui.noMarketPriceMessage",
-      "No market price for {items}. Please manually enter it in Advanced > Pricing model.",
+      "No market price for {items}. Please manually enter it in Advanced > Key price override.",
       { items: list }
     );
   }
@@ -1146,13 +1187,13 @@
     if (shared && typeof shared.normalizeModelFromSource === "function") {
       return shared.normalizeModelFromSource(source);
     }
-    return (source === "manual" || source === "other") ? source : "official";
+    return (source === "manual" || source === "other" || source === "keyplanner" || source === "api") ? source : "api";
   }
 
 /**
    * Returns { entry, chestKey } numeric prices or nulls
    * IMPORTANT: this expects these objects to exist:
-   * - pricingModel (string: "official" | "manual" | "other")
+   * - pricingModel (string: "api" | "manual" | "keyplanner" | legacy "official"/"other")
    * - manualSaved.entry / manualSaved.chest (numbers)
    * - officialSaved.entry / officialSaved.chest (numbers)  (or adjust below)
    * - otherSaved.entry / otherSaved.chest (numbers)        (or adjust below)
@@ -1176,6 +1217,14 @@
       }
       return null;
     };
+
+    if (model === "keyplanner") {
+      const imported = getCachedKeyPlannerImport(dk, { apiSource: activeApiSource });
+      return {
+        entry: Number.isFinite(imported?.entryPrice) ? imported.entryPrice : null,
+        chestKey: Number.isFinite(imported?.chestKeyPrice) ? imported.chestKeyPrice : null,
+      };
+    }
 
     if (model === "manual") {
       const baseSaved = getSavedByApiSource(getEffectiveApiSource("manual"));
@@ -1734,8 +1783,9 @@
 
   let selectedDungeon = sanitizeSelectedDungeonKey(storageGetItem(KEY_SELECTED_DUNGEON));
   let selectedTier = sanitizeSelectedTierKey(storageGetItem(KEY_SELECTED_TIER));
-  let pricingModel = sanitizePricingModel(storageGetItem(KEY_PRICING_MODEL));
-  let activeApiSource = sanitizeApiSource(storageGetItem(KEY_ACTIVE_API_SOURCE) || (pricingModel === "other" ? "other" : "official"));
+  const storedPricingModelRaw = String(storageGetItem(KEY_PRICING_MODEL) || "").trim().toLowerCase();
+  let pricingModel = sanitizePricingModel(storedPricingModelRaw);
+  let activeApiSource = sanitizeApiSource(storageGetItem(KEY_ACTIVE_API_SOURCE) || (storedPricingModelRaw === "other" ? "other" : "official"));
   if (!selectedDungeon) selectedTier = "";
   let runSavedByContext = normalizeRunSavedByContextMap(storageGetJson(KEY_RUN_INPUTS_BY_CONTEXT, {}));
   let foodSavedByContext = normalizeFoodSavedByContextMap(storageGetJson(KEY_FOOD_PER_DAY_BY_CONTEXT, {}));
@@ -2154,31 +2204,66 @@
     return refreshApiSourceForDungeon(selectedDungeon, activeApiSource, opts);
   }
 
+  async function openKeysTabFromPricingCard() {
+    try {
+      await window.KeysInline?.ensurePlannerOpen?.();
+    } catch (_) { }
+    if (!keysToggle) return;
+    if (!keysToggle.checked) {
+      keysToggle.checked = true;
+      keysToggle.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    window.setTimeout(() => {
+      const planner = document.getElementById("keysPlannerPanel")
+        || document.querySelector("#keysInline .keysPlannerShell")
+        || document.getElementById("keysInline");
+      try {
+        planner?.scrollIntoView({ block: "start", behavior: "smooth" });
+      } catch (_) {
+        try { planner?.scrollIntoView(); } catch (_) { }
+      }
+    }, 120);
+  }
+
   function syncPricingRefreshControls() {
+    const refreshTip = i18nF("ui.refreshApiPricesTip", "Refresh {source} API prices", {
+      source: apiSourceLabel(activeApiSource),
+    });
+    const currentRefreshTs = activeApiSource === "other"
+      ? Number(storageGetItem(KEY_OTHER_REFRESH) || 0)
+      : getOfficialRefreshTs();
     if (simpleOfficialRefreshBtn) {
-      const refreshTip = i18nF("ui.refreshApiPricesTip", "Refresh {source} API prices", {
-        source: apiSourceLabel(activeApiSource),
-      });
       simpleOfficialRefreshBtn.dataset.tip = refreshTip;
       simpleOfficialRefreshBtn.setAttribute("aria-label", refreshTip);
       simpleOfficialRefreshBtn.setAttribute("title", refreshTip);
     }
-    if (officialRefreshRow) officialRefreshRow.hidden = activeApiSource !== "official";
-    if (otherRefreshRow) otherRefreshRow.hidden = activeApiSource !== "other";
+    if (officialRefreshBtn) {
+      officialRefreshBtn.setAttribute("aria-label", refreshTip);
+      officialRefreshBtn.setAttribute("title", refreshTip);
+    }
+    if (apiPricingChoiceTag) apiPricingChoiceTag.textContent = apiSourceLabel(activeApiSource);
+    if (officialAge) officialAge.textContent = currentRefreshTs ? formatAge(Date.now() - currentRefreshTs) : "-";
+    if (officialRefreshStamp) {
+      officialRefreshStamp.textContent = currentRefreshTs
+        ? i18nF("ui.checkedStamp", "Last checked: {time}", { time: formatStamp(currentRefreshTs) })
+        : "";
+    }
+    if (officialRefreshRow) officialRefreshRow.hidden = false;
+    if (otherRefreshRow) otherRefreshRow.hidden = true;
   }
 
   function applyActiveApiSourceSelection(source, opts = {}) {
     const nextSource = sanitizeApiSource(source);
     const currentSource = sanitizeApiSource(activeApiSource);
-    const keepManual = pricingModel === "manual";
-    if (nextSource === currentSource && (keepManual || pricingModel === nextSource)) {
+    const keepKeyOverrides = pricingModel === "manual" || isKeyPlannerModel(pricingModel);
+    if (nextSource === currentSource && (keepKeyOverrides || pricingModel === nextSource || pricingModel === "api")) {
       closeApiSourceMenu();
       updateApiSourceFooter();
       return;
     }
     persistActiveApiSource(nextSource);
-    if (!keepManual) {
-      pricingModel = sanitizePricingModel(nextSource);
+    if (!keepKeyOverrides) {
+      pricingModel = "api";
       storageSetItem(KEY_PRICING_MODEL, pricingModel);
       applyPricingSelectionUi(pricingModel);
     }
@@ -2204,11 +2289,7 @@
   function applyPricingSelection(model) {
     pricingModel = sanitizePricingModel(model);
     storageSetItem(KEY_PRICING_MODEL, pricingModel);
-    if (pricingModel === "official" || pricingModel === "other") {
-      persistActiveApiSource(pricingModel);
-    } else {
-      storageSetItem(KEY_ACTIVE_API_SOURCE, activeApiSource);
-    }
+    storageSetItem(KEY_ACTIVE_API_SOURCE, activeApiSource);
 
     applyPricingSelectionUi(pricingModel);
     closeApiSourceMenu();
@@ -2766,17 +2847,21 @@
     storageSetItem(storageKey, String(now));
   }
 
+  function updateVisibleApiRefreshStamp(apiSource, now, usedProxy) {
+    if (!officialRefreshStamp || activeApiSource !== apiSource) return;
+    officialRefreshStamp.textContent = i18nF("ui.checkedStamp", "Last checked: {time}", {
+      time: `${formatStamp(now)}${usedProxy ? i18nT("ui.proxySuffix", " (proxy)") : ""}`,
+    });
+  }
+
   function updateOfficialRefreshStatus(now, usedProxy) {
     saveRefreshTimestamp(KEY_OFFICIAL_REFRESH, now);
-    if (officialRefreshStamp) {
-      officialRefreshStamp.textContent = i18nF("ui.checkedStamp", "Last checked: {time}", {
-        time: `${formatStamp(now)}${usedProxy ? i18nT("ui.proxySuffix", " (proxy)") : ""}`,
-      });
-    }
+    updateVisibleApiRefreshStamp("official", now, usedProxy);
   }
 
   function updateOtherRefreshStatus(now, usedProxy) {
     saveRefreshTimestamp(KEY_OTHER_REFRESH, now);
+    updateVisibleApiRefreshStamp("other", now, usedProxy);
     if (otherStatus) {
       otherStatus.textContent = i18nF("ui.mooketUpdated", "Mooket data updated: {time}{proxy}", {
         time: new Date(now).toLocaleString(),
@@ -2904,17 +2989,24 @@
     });
   }
 
-  bindManualRefreshButton(officialRefreshBtn, refreshOfficialPricesForDungeon);
+  bindManualRefreshButton(officialRefreshBtn, refreshActiveApiForSelectedDungeon);
 
   bindManualRefreshButton(simpleOfficialRefreshBtn, refreshActiveApiForSelectedDungeon, async () => {
     await rerenderVisibleResults({ includeAdvanced: false });
   });
 
-  // Other refresh
-  bindManualRefreshButton(otherRefreshBtn, refreshOtherPricesForDungeon);
+  if (keyPlannerOpenBtn) {
+    keyPlannerOpenBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await openKeysTabFromPricingCard();
+    });
+  }
 
   function tickTimers() {
-    const ts = getOfficialRefreshTs();
+    const ts = activeApiSource === "other"
+      ? Number(storageGetItem(KEY_OTHER_REFRESH) || 0)
+      : getOfficialRefreshTs();
     const age = ts ? formatAge(Date.now() - ts) : "-";
     if (officialAge) officialAge.textContent = age;
     if (officialRefreshStamp) {
@@ -3134,6 +3226,23 @@
   // ===== Summaries / status =====
 
   function pricingHeaderTexts(model = pricingModel, age = "—") {
+    if (model === "api") {
+      return {
+        pill: i18nT("ui.currentApiPrices", "Current API prices"),
+        line: i18nF("ui.apiDataUpdatedLine", "{source} API • Data updated: {age}", {
+          source: apiSourceLabel(activeApiSource),
+          age,
+        }),
+      };
+    }
+    if (model === "keyplanner") {
+      return {
+        pill: pricingModelLabel(model),
+        line: i18nF("ui.keysPlannerLineWithSource", "Keys planner + {source} API • Craft cost imported from Keys tab", {
+          source: apiSourceLabel(activeApiSource),
+        }),
+      };
+    }
     if (model === "manual") {
       return {
         pill: i18nF("ui.manualKeysWithSource", "Manual + {source}", { source: apiSourceLabel(activeApiSource) }),
@@ -3160,6 +3269,34 @@
     };
   }
 
+  function updateKeyPlannerImportUi(imported = null) {
+    if (!keyPlannerPreview && !keyPlannerDetails && !keyPlannerOpenBtn) return;
+    const info = imported || getCachedKeyPlannerImport(selectedDungeon, { apiSource: activeApiSource });
+    if (keyPlannerPreview) {
+      if (!selectedDungeon) {
+        keyPlannerPreview.textContent = i18nT("ui.keysImportPreviewEmpty", "Uses Keys tab settings.");
+      } else {
+        keyPlannerPreview.textContent = i18nF(
+          "ui.keysImportPreviewWithPrices",
+          "{source} • Entry {entry} • Chest {chest}",
+          {
+            source: apiSourceLabel(info?.apiSource || activeApiSource),
+            entry: Number.isFinite(info?.entryPrice) ? formatCoinsCompact(info.entryPrice) : "—",
+            chest: Number.isFinite(info?.chestKeyPrice) ? formatCoinsCompact(info.chestKeyPrice) : "—",
+          }
+        );
+      }
+    }
+    if (keyPlannerDetails) {
+      keyPlannerDetails.dataset.tip = String(info?.tooltip || i18nT("ui.keysImportUnavailable", "Keys planner pricing is not ready yet."));
+      keyPlannerDetails.setAttribute("aria-label", i18nT("ui.keysImportTooltipTitle", "Keys planner import"));
+    }
+    if (keyPlannerOpenBtn) {
+      const needsKeysSetup = !!selectedDungeon && isKeyPlannerModel(pricingModel) && info?.ok === false;
+      keyPlannerOpenBtn.classList.toggle("is-warning", needsKeysSetup);
+    }
+  }
+
   function updatePricingHeaderLine() {
     const ts = getApiSourcePayloadUpdatedTs(getEffectiveApiSource(pricingModel));
     const age = ts ? formatAge(Date.now() - ts) : "—";
@@ -3167,6 +3304,7 @@
     const texts = pricingHeaderTexts(pricingModel, age);
     pricingPill.textContent = texts.pill;
     pricingSummaryLine.textContent = texts.line;
+    updateKeyPlannerImportUi();
     updateApiSourceFooter();
   }
 
@@ -3262,7 +3400,7 @@
       lootOverrideItemsCache = [];
       if (lootOverrideHint) {
         lootOverrideHint.textContent = !usingApi
-          ? i18nT("ui.selectApiForDefaults", "Select Official API or Mooket API to view market defaults.")
+          ? i18nT("ui.selectApiForDefaults", "Select an API in the footer to view market defaults.")
           : i18nT("ui.enableManualLootEdit", "Enable Manual loot prices to edit item values.");
       }
       return;
@@ -3458,7 +3596,17 @@
     if (shared && typeof shared.pricingModelLabel === "function") {
       return shared.pricingModelLabel(model, { activeApiSource });
     }
+    if (model === "api") {
+      return activeApiSource === "other"
+        ? i18nT("ui.mooket", "Mooket")
+        : i18nT("ui.official", "Official");
+    }
     if (model === "official") return i18nT("ui.official", "Official");
+    if (model === "keyplanner") {
+      return activeApiSource === "other"
+        ? i18nT("ui.keysPlannerPlusMooket", "Keys Planner + Mooket")
+        : i18nT("ui.keysPlannerPlusOfficial", "Keys Planner + Official");
+    }
     if (model === "manual") {
       return activeApiSource === "other"
         ? i18nT("ui.manualPlusMooket", "Manual + Mooket")
@@ -3647,7 +3795,27 @@
     };
   }
 
+  function getKeyPlannerPricesAB(dungeonKey) {
+    const keyImportPrices = getCachedKeyPlannerImport(dungeonKey, { apiSource: activeApiSource });
+    const shared = getPricingStateShared();
+    if (shared && typeof shared.getPricesABForModel === "function") {
+      return shared.getPricesABForModel({
+        dungeonKey,
+        model: "keyplanner",
+        activeApiSource,
+        keyImportPrices,
+      });
+    }
+    return {
+      entryAsk: Number.isFinite(keyImportPrices?.entryAsk) ? keyImportPrices.entryAsk : -1,
+      entryBid: Number.isFinite(keyImportPrices?.entryBid) ? keyImportPrices.entryBid : -1,
+      chestKeyAsk: Number.isFinite(keyImportPrices?.chestKeyAsk) ? keyImportPrices.chestKeyAsk : -1,
+      chestKeyBid: Number.isFinite(keyImportPrices?.chestKeyBid) ? keyImportPrices.chestKeyBid : -1,
+    };
+  }
+
   function getPricesABForModel(dungeonKey, model) {
+    if (model === "keyplanner") return getKeyPlannerPricesAB(dungeonKey);
     const shared = getPricingStateShared();
     if (shared && typeof shared.getPricesABForModel === "function") {
       return shared.getPricesABForModel({
@@ -3665,6 +3833,17 @@
   }
 
   function derivePricesAndMissingState(dungeonKey, model, opts = {}) {
+    if (model === "keyplanner") {
+      const keyImport = opts.keyImport || getCachedKeyPlannerImport(dungeonKey, { apiSource: opts.apiSource || activeApiSource });
+      const prices = getKeyPlannerPricesAB(dungeonKey);
+      const missingPriceItems = keyImport?.ok
+        ? []
+        : [i18nT("ui.entryKey", "Entry Key"), i18nT("ui.chestKey", "Chest Key")];
+      const missingPriceMsg = keyImport?.ok
+        ? ""
+        : String(keyImport?.errorMessage || i18nT("ui.keysImportMissingMessage", "Keys planner pricing is unavailable. Check Keys tab settings and prices."));
+      return { prices, missingPriceItems, missingPriceMsg, keyImport };
+    }
     const apiSource = sanitizeApiSource(opts.apiSource || activeApiSource);
     const prices = opts.useActiveApi
       ? getApiSourceKeyPricesAB(dungeonKey, apiSource)
@@ -4070,8 +4249,8 @@ async function renderAdvancedResults() {
     runsEl: advRunsPerDay,
   });
 
-  const model = pricingModel || "official";
-  const label = (model === "official") ? "Official" : (model === "other") ? "Mooket" : "Manual";
+  const model = pricingModel || "api";
+  const label = pricingModelLabel(model);
   const rangeOn = isRangeEnabled({ includeAdvancedToggle: true });
   applyResultsSubText(advResultsSub, rangeOn, label);
 
@@ -4080,7 +4259,7 @@ async function renderAdvancedResults() {
   // EV source:
   // - Official: official market
   // - Mooket: mooket market
-  // - Manual: official market for EV, manual overrides for entry/chest keys
+  // - Manual / Keys planner: current footer-selected market for EV, overridden key prices
   const evSource = getEffectiveApiSource(model);
   const saved = (evSource === "other") ? otherSaved : officialSaved;
 
@@ -4094,9 +4273,17 @@ async function renderAdvancedResults() {
   const record = getSavedRecordFromMap(saved, selectedDungeon);
   const marketSlim = record?.marketSlim || null;
 
+  let keyImport = null;
+  if (model === "keyplanner") {
+    keyImport = await ensureKeyPlannerImport(selectedDungeon, { apiSource: activeApiSource });
+    updateKeyPlannerImportUi(keyImport);
+    updateEachAndTotalsForDungeon(selectedDungeon);
+  }
+
   const { prices, isMissing } = applyMissingPriceWarningAndState({
     dungeonKey: selectedDungeon,
     model,
+    deriveOptions: keyImport ? { keyImport, apiSource: activeApiSource } : undefined,
     profitBoxEl: advProfitBox,
     profitDayEl: advProfitDay,
     profitHourEl: advProfitHour,
@@ -4388,7 +4575,7 @@ async function renderAdvancedResults() {
     updateChestEvUI();
     updateAllSummaries();
     await rerenderVisibleResults({ includeSimple: false });
-    showToast(i18nT("ui.clearedInputsResetManualOfficial", "Cleared inputs and reset manual key prices to Official API."));
+    showToast(i18nT("ui.clearedInputsResetManualOfficial", "Cleared inputs and reset manual key prices to the current API."));
   }
 
   // ===== Reset =====
@@ -4657,7 +4844,7 @@ async function renderAdvancedResults() {
   window.DungeonAPI = {
     getSelectedDungeon: () => (typeof selectedDungeon !== "undefined" ? selectedDungeon : null),
     getSelectedTier: () => (typeof selectedTier !== "undefined" ? selectedTier : null),
-    getPricingModel: () => (typeof pricingModel !== "undefined" ? pricingModel : "official"),
+    getPricingModel: () => (typeof pricingModel !== "undefined" ? pricingModel : "api"),
     getClearMinutes: () => {
       const p = getPlayerParsedForApi();
       return p?.ctNum ?? NaN;
@@ -4796,6 +4983,14 @@ async function renderAdvancedResults() {
     const foodEls = [document.getElementById("foodPerDay"), advFoodPerDay].filter(Boolean);
     bindFoodPerDayRerender(foodEls, rerender);
   })();
+
+  document.addEventListener("keys:import-pricing-changed", () => {
+    updateKeyPlannerImportUi();
+    updateEachAndTotalsForDungeon(selectedDungeon);
+    if (isKeyPlannerModel(pricingModel)) {
+      void rerenderVisibleResults();
+    }
+  });
 
 
 
