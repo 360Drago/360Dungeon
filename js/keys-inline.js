@@ -609,6 +609,21 @@
         min-width: 0;
         transition: gap 220ms ease;
       }
+      #keysInline .keysZoneMuted {
+        opacity: 0.62;
+      }
+      #keysInline .keysZoneMuted.ico {
+        filter: grayscale(1) saturate(0.15);
+      }
+      #keysInline .keysZoneDeprecated {
+        opacity: 0.62;
+        text-decoration: line-through;
+        text-decoration-thickness: 1.5px;
+        text-decoration-color: color-mix(in srgb, rgba(248, 113, 113, 0.95) 78%, rgba(255,255,255,.28));
+      }
+      #keysInline .keysZoneNameCurrent {
+        opacity: 0.96;
+      }
       #keysInline .keysZoneLabel .ico {
         width: 13px;
         height: 13px;
@@ -1617,6 +1632,7 @@
   function zoneCardHtml(recipe, market, selectedDungeonKey) {
     const isSelected = selectedDungeonKey === recipe.uiKey;
     const state = ensureCalcState();
+    const artisanEnabled = !!normalizeArtisanEnabled(state.artisanEnabled);
     const keyPrice = extractAskBidFromMarketJson(market, recipe.keyHrid);
     const keyIcon = iconPath(recipe.keyHrid);
     const keyIconHtml = keyIcon ? `<img src="${escAttr(keyIcon)}" alt="" class="ico" loading="lazy" onerror="this.style.display='none'">` : "";
@@ -1645,6 +1661,22 @@
     const instantBidDelta = (Number.isFinite(keyPrice.bid) && Number.isFinite(craftAskTea)) ? (keyPrice.bid - craftAskTea) : null;
     const orderAskDelta = (Number.isFinite(keyPrice.ask) && Number.isFinite(craftBidTea)) ? (keyPrice.ask - craftBidTea) : null;
     const orderBidDelta = (Number.isFinite(keyPrice.bid) && Number.isFinite(craftBidTea)) ? (keyPrice.bid - craftBidTea) : null;
+    const compactProfitLabel = artisanEnabled
+      ? t("ui.instantArtisan", "Instant Artisan")
+      : t("ui.instantCraft", "Instant Craft");
+    const craftCostLabelHtml = artisanEnabled
+      ? `${teaIconHtml}<span class="keysZoneName">${escHtml(t("ui.artisanCost", "Artisan Cost"))}</span>`
+      : isSelected
+        ? `
+            ${teaIcon ? `<img src="${escAttr(teaIcon)}" alt="" class="ico keysZoneMuted" loading="lazy" onerror="this.style.display='none'">` : ""}
+            <span class="keysZoneName keysZoneDeprecated keysZoneMuted">${escHtml(t("ui.artisan", "Artisan"))}</span>
+            <span class="keysZoneName keysZoneNameCurrent">${escHtml(t("ui.craft", "Craft"))}</span>
+            <span class="keysZoneName">${escHtml(t("ui.cost", "Cost"))}</span>
+          `
+        : `
+            ${teaIcon ? `<img src="${escAttr(teaIcon)}" alt="" class="ico keysZoneMuted" loading="lazy" onerror="this.style.display='none'">` : ""}
+            <span class="keysZoneName keysZoneNameCurrent">${escHtml(t("ui.craft", "Craft"))}</span>
+          `;
 
     const fragHtml = fragRows.map((f) => {
       const icon = iconPath(f.itemHrid);
@@ -1662,7 +1694,7 @@
 
     const compactProfitHtml = `
       <div class="keysZoneRow is-profit">
-        <div class="keysZoneName">${escHtml(t("ui.instantArtisan", "Instant Artisan"))}</div>
+        <div class="keysZoneName">${escHtml(compactProfitLabel)}</div>
         <div class="keysZoneValue"><span class="keysZoneProfit ${profitClass(instantAskDelta)}">${escHtml(fmtSigned(instantAskDelta))}</span></div>
       </div>
     `;
@@ -1704,7 +1736,7 @@
           </div>
           ${fragHtml}
           <div class="keysZoneRow is-strong">
-            <div class="keysZoneLabel">${teaIconHtml}<span class="keysZoneName">${escHtml(t("ui.artisanCost", "Artisan Cost"))}</span></div>
+            <div class="keysZoneLabel">${craftCostLabelHtml}</div>
             <div class="keysZoneValue">${escHtml(fmtCoins(craftAskTea))}</div>
             <div class="keysZoneValue">${escHtml(fmtCoins(craftBidTea))}</div>
           </div>
