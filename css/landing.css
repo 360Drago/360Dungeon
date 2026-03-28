@@ -96,6 +96,60 @@ html.theme-transitioning body::after {
   }
 }
 
+@keyframes discoBlob {
+  0% {
+    transform: translate3d(-2%, 0, 0) scale(1);
+    filter: blur(22px) saturate(1.2) hue-rotate(0deg);
+  }
+
+  50% {
+    transform: translate3d(3%, -3%, 0) scale(1.08);
+    filter: blur(26px) saturate(1.45) hue-rotate(65deg);
+  }
+
+  100% {
+    transform: translate3d(-1%, 2%, 0) scale(0.98);
+    filter: blur(22px) saturate(1.25) hue-rotate(130deg);
+  }
+}
+
+@keyframes discoSweep {
+  0% {
+    opacity: 0.2;
+    transform: translate3d(-4%, 0, 0) scale(1.02);
+    background-position: 0 0, 0 0;
+  }
+
+  50% {
+    opacity: 0.3;
+    transform: translate3d(4%, -1%, 0) scale(1.05);
+    background-position: 140px 0, 0 0;
+  }
+
+  100% {
+    opacity: 0.22;
+    transform: translate3d(-2%, 1%, 0) scale(1.01);
+    background-position: 280px 0, 0 0;
+  }
+}
+
+@keyframes discoPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 0 0 0 rgba(255, 79, 216, 0),
+      0 12px 24px rgba(255, 79, 216, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.24),
+      0 0 0 6px rgba(255, 79, 216, 0.12),
+      0 16px 32px rgba(34, 211, 238, 0.16);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -105,6 +159,75 @@ html.theme-transitioning body::after {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+html.disco-mode body {
+  background:
+    radial-gradient(circle at 15% 16%, rgba(255, 0, 153, 0.16), transparent 24%),
+    radial-gradient(circle at 82% 14%, rgba(34, 211, 238, 0.15), transparent 26%),
+    radial-gradient(circle at 50% 100%, rgba(250, 204, 21, 0.14), transparent 36%),
+    linear-gradient(135deg, #180f24 0%, #112031 44%, #241119 100%);
+  background-attachment: fixed;
+}
+
+html.disco-mode body::before {
+  inset: -10% -10% 42% -10%;
+  opacity: 0.92;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 0, 153, 0.26), transparent 20%),
+    radial-gradient(circle at 78% 22%, rgba(34, 211, 238, 0.24), transparent 24%),
+    radial-gradient(circle at 52% 8%, rgba(250, 204, 21, 0.18), transparent 18%);
+  animation: discoBlob 12s linear infinite alternate;
+}
+
+html.disco-mode body::after {
+  opacity: 0.24;
+  z-index: 1;
+  background:
+    repeating-linear-gradient(115deg,
+      rgba(255, 0, 153, 0.14) 0 18px,
+      rgba(250, 204, 21, 0.08) 18px 36px,
+      rgba(34, 211, 238, 0.12) 36px 54px,
+      transparent 54px 78px),
+    radial-gradient(72% 55% at 50% -10%, rgba(255, 255, 255, 0.12), transparent 72%);
+  mix-blend-mode: screen;
+  animation: discoSweep 11s linear infinite;
+}
+
+html.disco-mode .card,
+html.disco-mode .panel,
+html.disco-mode .optionsHeader,
+html.disco-mode .simpleCard,
+html.disco-mode .statusStack,
+html.disco-mode .choiceCard,
+html.disco-mode .tokenShopPanel,
+html.disco-mode .zoneCompareCard,
+html.disco-mode .toast {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 16px 34px rgba(255, 0, 153, 0.09);
+}
+
+html.disco-mode .field input,
+html.disco-mode .simpleField input[type="number"],
+html.disco-mode .simpleField input[type="text"],
+html.disco-mode .lootOverrideRow input,
+html.disco-mode .miniBtn,
+html.disco-mode .tierBtn,
+html.disco-mode .panelPill,
+html.disco-mode .simplePill,
+html.disco-mode .modeTgl,
+html.disco-mode .ctrlBtn,
+html.disco-mode .apiSourceCurrent {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+html.disco-mode #themeBtn {
+  background:
+    linear-gradient(135deg, rgba(255, 0, 153, 0.24), rgba(34, 211, 238, 0.18));
+  animation: discoPulse 1.8s ease-in-out infinite;
 }
 
 .wrap {
