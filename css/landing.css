@@ -2198,6 +2198,30 @@ html[data-theme="light"] .modeTglBox {
   color: var(--title-color);
 }
 
+html[data-theme="light"] .lootOverrideAskBtn {
+  background: var(--surface-input);
+  border-color: var(--neutral-border);
+  color: var(--title-color);
+}
+
+html[data-theme="light"] .lootOverrideAskBtn:hover {
+  border-color: color-mix(in srgb, var(--title-color) 18%, var(--neutral-border));
+  background: color-mix(in srgb, var(--title-color) 4%, var(--surface-input));
+}
+
+html[data-theme="light"] .lootOverrideRow.isAskLocked .lootOverrideAskBtn {
+  border-color: rgba(217, 119, 6, 0.45);
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--title-color);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.14);
+}
+
+html[data-theme="light"] .lootOverrideRow.isAskLocked input {
+  border-color: rgba(217, 119, 6, 0.28);
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--title-color);
+}
+
 html[data-theme="light"] .miniBtn,
 html[data-theme="light"] .tierBtn,
 html[data-theme="light"] .panelPill,
@@ -2881,16 +2905,18 @@ body.advanced-mode .advOnly {
   display: grid;
   gap: 8px;
   max-height: 320px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 4px;
   align-content: start;
 }
 
 .lootOverrideRow {
   display: grid;
-  grid-template-columns: 32px 1fr 140px;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(176px, 188px) 32px;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   padding: 8px 10px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.10);
@@ -2914,7 +2940,47 @@ body.advanced-mode .advOnly {
 }
 
 .lootOverrideName {
+  min-width: 0;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.lootOverrideInputWrap {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lootOverrideAskBtn {
+  position: relative;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.72);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.lootOverrideAskGlyph {
+  display: block;
+  height: 17px;
+  width: 17px;
+  background: center / contain no-repeat url("../assets/Svg/Market_place.svg");
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
+}
+
+.lootOverrideAskBtn:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .lootOverrideRow input {
@@ -2937,6 +3003,23 @@ body.advanced-mode .advOnly {
   border-color: rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.95);
+}
+
+.lootOverrideRow.isAskLocked .lootOverrideAskBtn {
+  border-color: rgba(251, 191, 36, 0.58);
+  background: rgba(251, 191, 36, 0.16);
+  color: rgba(255, 241, 204, 0.96);
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.18);
+}
+
+.lootOverrideRow.isAskLocked .lootOverrideAskGlyph {
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.22));
+}
+
+.lootOverrideRow.isAskLocked input {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(251, 191, 36, 0.07);
+  color: rgba(255, 241, 204, 0.92);
 }
 
 .lootOverrideRow.isInvalid input {
@@ -3500,6 +3583,14 @@ body.advanced-mode .panel[data-panel="run"] .runSimActions {
   white-space: nowrap;
 }
 
+.lootOverrideAskBtn.tipHost[data-tip]:not([data-tip=""])::after {
+  min-width: 88px;
+  max-width: 92px;
+  width: 92px;
+  white-space: pre-line;
+  text-align: center;
+}
+
 .tipHost[data-tip]:not([data-tip=""])::before {
   content: "";
   position: absolute;
@@ -3869,9 +3960,10 @@ html[data-theme="light"] #advProfitBox.profitTinted .muted.small {
 /* Manual price override row reset button */
 .lootOverrideRow {
   display: grid;
-  grid-template-columns: 28px 1fr 140px 32px;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(176px, 188px) 32px;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .lootOverrideIcon {
@@ -3885,13 +3977,19 @@ html[data-theme="light"] #advProfitBox.profitTinted .muted.small {
   --dangerSoftHover: color-mix(in srgb, var(--danger) 42%, transparent);
   --dangerBorder: color-mix(in srgb, var(--danger) 60%, transparent);
   --dangerText: var(--danger-text);
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
   border: 1px solid var(--dangerBorder);
   background: var(--dangerSoft);
   color: var(--dangerText);
   border-radius: 8px;
-  padding: 4px 6px;
+  padding: 0;
   line-height: 1;
   font-weight: 800;
+  display: grid;
+  place-items: center;
+  justify-self: end;
   cursor: pointer;
   transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }

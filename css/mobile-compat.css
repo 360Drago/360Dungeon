@@ -675,6 +675,55 @@ html.mobile-compat #zoneCompareInline .lootOverrideList {
   max-height: 320px;
 }
 
+html.mobile-compat #zoneCompareInline .lootOverrideSection,
+html.mobile-compat #zoneCompareInline .lootOverrideControls,
+html.mobile-compat #zoneCompareInline .lootOverrideList {
+  min-width: 0;
+  max-width: 100%;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideList {
+  overflow-x: hidden;
+  padding-right: 0;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideRow {
+  grid-template-columns: 28px minmax(0, 1fr) minmax(126px, 148px) 28px;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideInputWrap {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 6px;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideRow input {
+  min-width: 0;
+  width: 100%;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideAskBtn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+}
+
+html.mobile-compat #zoneCompareInline .lootOverrideResetOne {
+  width: 28px;
+  min-width: 28px;
+  padding-inline: 0;
+  justify-self: end;
+}
+
 html.mobile-compat.mobile-compat-tight .headerGrid {
   height: clamp(104px, 16vh, 146px);
 }
