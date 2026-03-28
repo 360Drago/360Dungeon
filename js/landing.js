@@ -445,6 +445,23 @@
     try {
       storageSetJson(KEY_LOOT_PRICE_OVERRIDES, map || {});
     } catch { /* ignore */ }
+    try {
+      document.dispatchEvent(new CustomEvent("dungeon:loot-overrides-changed", {
+        detail: {
+          enabled: !!lootOverrideEnabled,
+          overrides: map || {},
+          source: "advanced",
+        },
+      }));
+    } catch { /* ignore */ }
+  }
+
+  function getLootOverrideMode(raw) {
+    if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return "Custom";
+    if (!raw || typeof raw !== "object") return "";
+    const mode = typeof raw.mode === "string" ? raw.mode : "";
+    if (mode === "Ask" || mode === "Bid" || mode === "Custom") return mode;
+    return "";
   }
 
   function syncLootOverrideStateFromStorage() {
@@ -462,6 +479,15 @@
         ? i18nT("ui.toggleOff", "Toggle off")
         : i18nT("ui.toggleOn", "Toggle on");
     }
+    try {
+      document.dispatchEvent(new CustomEvent("dungeon:loot-overrides-changed", {
+        detail: {
+          enabled: !!lootOverrideEnabled,
+          overrides: lootPriceOverrides || {},
+          source: "advanced",
+        },
+      }));
+    } catch { /* ignore */ }
   }
 
   function getActiveLootOverrides() {
@@ -606,8 +632,8 @@
     const slim = getMarketSlimForSelected();
     const e = slim?.[hrid];
     if (!e) return null;
-    if (typeof e.b === "number") return e.b;
-    if (typeof e.a === "number") return e.a;
+    if (typeof e.b === "number" && e.b > 0) return e.b;
+    if (typeof e.a === "number" && e.a > 0) return e.a;
     return null;
   }
 
@@ -3420,7 +3446,7 @@
     if (ensureCache || !items.length || items._dungeonKey !== selectedDungeon) {
       if (window.DungeonChestEV?.getDungeonChestItems) {
         try {
-          items = await window.DungeonChestEV.getDungeonChestItems(selectedDungeon, marketSlim);
+          items = await window.DungeonChestEV.getDungeonChestItems(selectedDungeon, marketSlim, "bid");
         } catch (e) {
           console.warn("Failed to load dungeon items:", e);
           items = [];
@@ -3461,53 +3487,54 @@
       name.textContent = item.name || "-";
       row.appendChild(name);
 
-      // Mode switch (Bid/Ask/Custom)
-      const modeWrap = document.createElement('div');
-      modeWrap.className = 'lootOverrideMode';
-      const modes = ['Bid', 'Ask', 'Custom'];
-      const currentOv = (typeof hrid === 'string') ? lootPriceOverrides[hrid] : undefined;
-      const currentMode = (currentOv && typeof currentOv === 'object' && currentOv.mode) ? currentOv.mode : (typeof currentOv === 'number' ? 'Custom' : '');
-      for (const m of modes) {
-        const lab = document.createElement('label');
-        const rb = document.createElement('input');
-        rb.type = 'radio'; rb.name = `mode-${hrid}`; rb.value = m;
-        if (m === currentMode) rb.checked = true;
-        lab.appendChild(rb); lab.appendChild(document.createTextNode(m));
-        modeWrap.appendChild(lab);
-        rb.addEventListener('change', () => {
-          if (m === 'Custom') {
-            const v = parseCompactNumber(input.value);
-            if (typeof hrid === 'string') lootPriceOverrides[hrid] = (Number.isFinite(v) ? Math.round(v) : { mode: 'Custom' });
-            input.disabled = false;
-          } else {
-            if (typeof hrid === 'string') lootPriceOverrides[hrid] = { mode: m };
-            input.disabled = true;
-          }
-          saveLootPriceOverrides(lootPriceOverrides);
-          scheduleOverrideEvRecompute();
-        });
-      }
-
-
       const input = document.createElement("input");
       input.type = "text";
       input.inputMode = "decimal";
       input.placeholder = "-";
 
       const overrideVal = (typeof hrid === "string") ? lootPriceOverrides[hrid] : undefined;
-      const isObj = overrideVal && typeof overrideVal === 'object';
-      const isCustom = (typeof overrideVal === 'number') || (isObj && overrideVal.mode === 'Custom');
-      if (isCustom) {
+      const currentMode = getLootOverrideMode(overrideVal);
+      const isCustom = currentMode === "Custom";
+      const isAskLocked = currentMode === "Ask";
+      const askPrice = Number.isFinite(Number(item?.askPrice)) && Number(item.askPrice) >= 0
+        ? Number(item.askPrice)
+        : null;
+      const askDisplay = Number.isFinite(askPrice) ? askPrice : null;
+      if (isAskLocked) {
+        row.classList.add("isAskLocked");
+        input.value = Number.isFinite(askDisplay) ? fmtGold(askDisplay) : "";
+        input.placeholder = Number.isFinite(askDisplay) ? fmtGold(askDisplay) : i18nT("ui.ask", "Ask");
+        input.disabled = true;
+      } else if (isCustom) {
         row.classList.add("isCustom");
-        const v = (typeof overrideVal === 'number') ? overrideVal : (overrideVal.price || 0);
-        input.value = v ? fmtGold(v) : '';
+        const v = (typeof overrideVal === "number") ? overrideVal : (overrideVal.price || 0);
+        input.value = Number.isFinite(v) ? fmtGold(v) : '';
         input.disabled = false;
       } else {
         row.classList.add("isDefault");
         input.value = "";
-        const def = (typeof hrid === "string") ? getDefaultUnitPrice(hrid) : null;
+        const def = Number.isFinite(Number(item?.defaultPrice))
+          ? Number(item.defaultPrice)
+          : ((typeof hrid === "string") ? getDefaultUnitPrice(hrid) : null);
         if (typeof def === "number") input.placeholder = fmtGold(def);
       }
+
+      const inputWrap = document.createElement("div");
+      inputWrap.className = "lootOverrideInputWrap";
+
+      const askBtn = document.createElement("button");
+      askBtn.type = "button";
+      askBtn.className = "lootOverrideAskBtn tipHost";
+      askBtn.dataset.tip = i18nT("ui.lockAskPriceTip", "Lock to\nAsk price");
+      askBtn.title = "";
+      askBtn.setAttribute("aria-label", i18nT("ui.lockAskPrice", "Lock to Ask price"));
+      askBtn.setAttribute("aria-pressed", isAskLocked ? "true" : "false");
+      const askGlyph = document.createElement("span");
+      askGlyph.className = "lootOverrideAskGlyph";
+      askGlyph.setAttribute("aria-hidden", "true");
+      askBtn.appendChild(askGlyph);
+      inputWrap.appendChild(askBtn);
+      inputWrap.appendChild(input);
 
       input.addEventListener("input", () => {
         const raw = input.value;
@@ -3541,6 +3568,16 @@
         scheduleOverrideEvRecompute();
       });
 
+      askBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (typeof hrid !== "string") return;
+        if (getLootOverrideMode(lootPriceOverrides[hrid]) === "Ask") delete lootPriceOverrides[hrid];
+        else lootPriceOverrides[hrid] = { mode: "Ask" };
+        saveLootPriceOverrides(lootPriceOverrides);
+        renderLootOverrideList({ keepScroll: true });
+        scheduleOverrideEvRecompute();
+      });
+
       input.addEventListener("blur", () => {
         const n = parseCompactNumber(input.value);
         if (n != null) input.value = fmtGold(n);
@@ -3562,7 +3599,7 @@
           scheduleOverrideEvRecompute();
         }
       });
-      row.appendChild(input);
+      row.appendChild(inputWrap);
       row.appendChild(resetBtn);
       lootOverrideList.appendChild(row);
     }

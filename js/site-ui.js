@@ -2,7 +2,7 @@
     const LS_LANG = "site.lang";   // "en" | "zh-Hans" | "zh-Hant"
     const LS_THEME = "site.theme"; // "light" | "dark" | ""/"auto" (system)
     const LS_THEME_DISCO = "site.theme.disco"; // "1" when the hidden disco mode is enabled
-    const DISCO_TOGGLE_WINDOW_MS = 4200;
+    const DISCO_TOGGLE_WINDOW_MS = 4000;
     const DISCO_TOGGLE_COUNT = 4;
 
     function getStorageShared() {
@@ -252,6 +252,8 @@
             "ui.items": "Item",
             "ui.tokens": "Tokens",
             "ui.ask": "Ask",
+            "ui.lockAskPrice": "Lock to Ask price",
+            "ui.lockAskPriceTip": "Lock to\nAsk price",
             "ui.bid": "Bid",
             "ui.topCoinsPerToken": "Top coins/token",
             "ui.calculate": "Calculate",
@@ -670,6 +672,8 @@
             "ui.items": "物品",
             "ui.tokens": "代币",
             "ui.ask": "卖一",
+            "ui.lockAskPrice": "锁定为卖一价格",
+            "ui.lockAskPriceTip": "锁定为\n卖一价格",
             "ui.bid": "买一",
             "ui.topCoinsPerToken": "每代币最高金币",
             "ui.calculate": "计算",
@@ -1092,6 +1096,8 @@
             "ui.items": "物品",
             "ui.tokens": "代幣",
             "ui.ask": "賣一",
+            "ui.lockAskPrice": "鎖定為賣一價格",
+            "ui.lockAskPriceTip": "鎖定為\n賣一價格",
             "ui.bid": "買一",
             "ui.topCoinsPerToken": "每代幣最高金幣",
             "ui.calculate": "計算",

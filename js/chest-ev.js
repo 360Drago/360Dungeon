@@ -738,16 +738,47 @@
     return `./assets/Svg/${encodeURIComponent(file).replace(/%2F/g, "/")}`;
   }
 
-  async function getDungeonChestItems(dungeonKey, _marketData = null) {
+  function resolveManualLootDefaultPrice(hrid, marketData, side, ctx = {}) {
+    if (!hrid) return null;
+
+    if (hrid === LARGE_TREASURE_CHEST_HRID) {
+      const openableEv = safeNum(ctx.evInfo?.largeChestOpenEv);
+      if (Number.isFinite(openableEv) && openableEv > 0) return openableEv;
+    }
+
+    if (hrid === COWBELL_HRID) {
+      const cowbellEach = safeNum(ctx.evInfo?.cowbellEachValue);
+      if (Number.isFinite(cowbellEach) && cowbellEach > 0) return cowbellEach;
+    }
+
+    if (hrid === ctx.tokenHrid) {
+      const tokenValue = safeNum(ctx.evInfo?.tokenValue);
+      if (Number.isFinite(tokenValue) && tokenValue > 0) return tokenValue;
+    }
+
+    const marketPrice = getMarketPrice(marketData || {}, hrid, 0, null);
+    const primary = pickSide(marketPrice, side);
+    if (typeof primary === "number" && Number.isFinite(primary) && primary > 0) return primary;
+
+    const altSide = side === "ask" ? "bid" : "ask";
+    const alt = pickSide(marketPrice, altSide);
+    if (typeof alt === "number" && Number.isFinite(alt) && alt > 0) return alt;
+
+    return null;
+  }
+
+  async function getDungeonChestItems(dungeonKey, marketData = null, side = "bid") {
     const dk = uiToShortDungeonKey(dungeonKey);
     const init = await ensureInit();
     const raw = await ensureOpenableLootRaw();
 
     const chestHrid = DUNGEON_TO_CHEST_ITEM_HRID[dk]?.chest;
+    const refinedHrid = DUNGEON_TO_CHEST_ITEM_HRID[dk]?.refined;
     if (!chestHrid) return [];
 
-    const direct = raw.getExpectedRows(chestHrid, { resolveNested: false }) || [];
-    const wantLarge = direct.some(r => r.itemHrid === LARGE_TREASURE_CHEST_HRID);
+    const chestDirect = raw.getExpectedRows(chestHrid, { resolveNested: false }) || [];
+    const refinedDirect = refinedHrid ? (raw.getExpectedRows(refinedHrid, { resolveNested: false }) || []) : [];
+    const wantLarge = chestDirect.some((r) => r.itemHrid === LARGE_TREASURE_CHEST_HRID);
 
     const rows = [];
     const seen = new Set();
@@ -762,15 +793,57 @@
         hrid,
         iconPath: buildDropIconPath(hrid),
         large: !!large,
+        defaultPrice: null,
+        askPrice: null,
       });
     }
 
-    for (const r of direct) addHrid(r.itemHrid, false);
+    for (const r of chestDirect) addHrid(r.itemHrid, false);
+    for (const r of refinedDirect) addHrid(r.itemHrid, false);
 
     if (wantLarge) {
       addHrid(LARGE_TREASURE_CHEST_HRID, true);
       const largeRows = raw.getExpectedRows(LARGE_TREASURE_CHEST_HRID, { resolveNested: false }) || [];
       for (const r of largeRows) addHrid(r.itemHrid, true);
+    }
+
+    const resolvedOpenables = [chestHrid, refinedHrid];
+    if (wantLarge) resolvedOpenables.push(LARGE_TREASURE_CHEST_HRID);
+    for (const openableHrid of resolvedOpenables) {
+      if (!openableHrid) continue;
+      const expectedMap = raw.getExpectedMap(openableHrid, { resolveNested: true }) || {};
+      for (const itemHrid of Object.keys(expectedMap)) addHrid(itemHrid, openableHrid === LARGE_TREASURE_CHEST_HRID);
+    }
+
+    let evInfo = null;
+    let askEvInfo = null;
+    try {
+      if (marketData) {
+        evInfo = await computeDungeonChestEV({
+          dungeonKey,
+          marketData,
+          side,
+          priceOverrides: null,
+        });
+        if (side === "ask") askEvInfo = evInfo;
+        else {
+          askEvInfo = await computeDungeonChestEV({
+            dungeonKey,
+            marketData,
+            side: "ask",
+            priceOverrides: null,
+          });
+        }
+      }
+    } catch (_) { }
+
+    const tokenHrid = `/items/${dk}_token`;
+    for (const row of rows) {
+      row.defaultPrice = resolveManualLootDefaultPrice(row.hrid, marketData, side, { evInfo, tokenHrid });
+      row.askPrice = resolveManualLootDefaultPrice(row.hrid, marketData, "ask", {
+        evInfo: askEvInfo || evInfo,
+        tokenHrid,
+      });
     }
 
     rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));

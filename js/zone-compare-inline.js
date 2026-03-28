@@ -198,6 +198,15 @@
     return NaN;
   }
 
+  function getLootOverrideMode(raw) {
+    const normalized = normalizeLootOverrideEntry(raw);
+    if (typeof normalized === "number") return "Custom";
+    if (!normalized || typeof normalized !== "object") return "";
+    const mode = asText(normalized.mode);
+    if (mode === "Ask" || mode === "Bid" || mode === "Custom") return mode;
+    return "";
+  }
+
   function loadSharedLootOverrideState() {
     const sharedEnabledRaw = storageGet(SHARED_LOOT_OVERRIDE_ENABLED_KEY);
     const sharedOverridesRawText = storageGet(SHARED_LOOT_PRICE_OVERRIDES_KEY);
@@ -1320,35 +1329,51 @@
   async function buildManualLootRows(zones, source) {
     const api = window.DungeonAPI || null;
     const ev = window.DungeonChestEV || null;
-    if (!api || !ev?.getEvRelevantHrids) return [];
+    if (!api || !ev?.getDungeonChestItems) return [];
 
     const seen = new Map();
     for (const zone of zones) {
       const market = api.getMarketSlim?.(zone.key, source) || null;
-      let hrids = [];
+      const mirrorAB = extractAskBid(market, MIRROR_HRID);
+      const mirrorPrice = (Number.isFinite(mirrorAB.bid) && mirrorAB.bid >= 0)
+        ? mirrorAB.bid
+        : ((Number.isFinite(mirrorAB.ask) && mirrorAB.ask >= 0) ? mirrorAB.ask : NaN);
+      let items = [];
       try {
-        hrids = await ev.getEvRelevantHrids(zone.key, market);
+        items = await ev.getDungeonChestItems(zone.key, market, "bid");
       } catch (_) {
-        hrids = [];
+        items = [];
       }
 
-      for (const hrid of hrids || []) {
+      for (const item of items || []) {
+        const hrid = asText(item?.hrid);
         if (!hrid || hrid === "/items/coin") continue;
-        if (String(hrid).toLowerCase().endsWith("_token")) continue;
+        let defaultPrice = Number(item?.defaultPrice);
+        if (BACKSLOT_HRIDS.includes(hrid) && state.mirrorBackslot && Number.isFinite(mirrorPrice) && mirrorPrice >= 0) {
+          defaultPrice = mirrorPrice;
+        }
         if (!seen.has(hrid)) {
-          const p = extractAskBid(market, hrid);
           seen.set(hrid, {
             hrid,
-            name: labelForHrid(hrid),
-            iconPath: iconPathForHrid(hrid),
-            placeholder: Number.isFinite(p.bid) && p.bid >= 0 ? fmtCoins(p.bid) : "",
+            name: asText(item?.name) || labelForHrid(hrid),
+            iconPath: item?.iconPath || iconPathForHrid(hrid),
+            defaultPrice: Number.isFinite(defaultPrice) && defaultPrice >= 0 ? defaultPrice : null,
+            askPrice: Number.isFinite(Number(item?.askPrice)) && Number(item.askPrice) >= 0 ? Number(item.askPrice) : null,
+            sourceZones: [zone.key],
+            placeholder: Number.isFinite(defaultPrice) && defaultPrice >= 0 ? fmtCoins(defaultPrice) : "",
           });
         } else {
           const existing = seen.get(hrid);
-          if (!existing.placeholder) {
-            const p = extractAskBid(market, hrid);
-            if (Number.isFinite(p.bid) && p.bid >= 0) existing.placeholder = fmtCoins(p.bid);
+          const hasExistingDefault = Number.isFinite(Number(existing.defaultPrice)) && Number(existing.defaultPrice) >= 0;
+          if (!hasExistingDefault && Number.isFinite(defaultPrice) && defaultPrice >= 0) {
+            existing.defaultPrice = defaultPrice;
+            existing.placeholder = fmtCoins(defaultPrice);
           }
+          const hasExistingAsk = Number.isFinite(Number(existing.askPrice)) && Number(existing.askPrice) >= 0;
+          const nextAsk = Number(item?.askPrice);
+          if (!hasExistingAsk && Number.isFinite(nextAsk) && nextAsk >= 0) existing.askPrice = nextAsk;
+          if (!Array.isArray(existing.sourceZones)) existing.sourceZones = [];
+          if (!existing.sourceZones.includes(zone.key)) existing.sourceZones.push(zone.key);
         }
       }
     }
@@ -1399,14 +1424,23 @@
     }
 
     list.innerHTML = filtered.map((r) => {
+      const currentMode = getLootOverrideMode(state.manualOverrides?.[r.hrid]);
       const custom = getCustomLootOverrideValue(state.manualOverrides?.[r.hrid]);
       const hasCustom = Number.isFinite(custom);
-      const cls = hasCustom ? "lootOverrideRow isCustom" : "lootOverrideRow isDefault";
+      const isAskLocked = currentMode === "Ask";
+      const askPrice = Number.isFinite(Number(r.askPrice)) && Number(r.askPrice) >= 0 ? Number(r.askPrice) : null;
+      const askText = Number.isFinite(askPrice) ? fmtCoins(askPrice) : "";
+      const cls = isAskLocked
+        ? "lootOverrideRow isAskLocked"
+        : (hasCustom ? "lootOverrideRow isCustom" : "lootOverrideRow isDefault");
       return `
         <div class="${cls}" data-hrid="${escAttr(r.hrid)}">
           <div class="lootOverrideIcon">${r.iconPath ? `<img src="${escAttr(r.iconPath)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ""}</div>
           <div class="lootOverrideName" title="${escAttr(r.name)}">${escText(r.name)}</div>
-          <input type="text" inputmode="decimal" placeholder="${escAttr(r.placeholder || "-")}" value="${hasCustom ? escAttr(fmtCoins(custom)) : ""}" aria-label="${escAttr(tf("ui.manualPriceAria", "{item} manual price", { item: r.name }))}" />
+          <div class="lootOverrideInputWrap">
+            <button class="lootOverrideAskBtn tipHost" type="button" data-tip="${escAttr(t("ui.lockAskPriceTip", "Lock to\nAsk price"))}" title="" aria-label="${escAttr(t("ui.lockAskPrice", "Lock to Ask price"))}" aria-pressed="${isAskLocked ? "true" : "false"}"><span class="lootOverrideAskGlyph" aria-hidden="true"></span></button>
+            <input type="text" inputmode="decimal" placeholder="${escAttr(isAskLocked ? (askText || t("ui.ask", "Ask")) : (r.placeholder || "-"))}" value="${escAttr(isAskLocked ? askText : (hasCustom ? fmtCoins(custom) : ""))}" ${isAskLocked ? "disabled" : ""} aria-label="${escAttr(tf("ui.manualPriceAria", "{item} manual price", { item: r.name }))}" />
+          </div>
           <button class="lootOverrideResetOne tipHost" data-tip="${t("ui.reset", "Reset")}" title="" aria-label="${t("ui.reset", "Reset")}">R</button>
         </div>
       `;
@@ -1415,6 +1449,7 @@
     list.querySelectorAll(".lootOverrideRow").forEach((rowEl) => {
       const hrid = rowEl.getAttribute("data-hrid");
       const input = rowEl.querySelector("input");
+      const askBtn = rowEl.querySelector(".lootOverrideAskBtn");
       const resetOne = rowEl.querySelector(".lootOverrideResetOne");
       if (!hrid || !input) return;
 
@@ -1438,6 +1473,16 @@
         input.value = fmtCoins(n);
         persistState({ emitLootOverrides: true });
       };
+
+      if (askBtn) {
+        askBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (getLootOverrideMode(state.manualOverrides?.[hrid]) === "Ask") delete state.manualOverrides[hrid];
+          else state.manualOverrides[hrid] = { mode: "Ask" };
+          persistState({ emitLootOverrides: true });
+          void renderManualPanel(zones, source);
+        });
+      }
 
       input.addEventListener("blur", commit);
       input.addEventListener("change", commit);
@@ -1534,7 +1579,7 @@
 
     try {
       const low = await lowDropOverrides(zone.short);
-      let overrides = mergeOverrides(baseOverrides, low);
+      let policyOverrides = mergeOverrides(low, null);
       if (state.mirrorBackslot) {
         const mirrorAB = extractAskBid(market, MIRROR_HRID);
         const mirrorPrice = (Number.isFinite(mirrorAB.bid) && mirrorAB.bid >= 0)
@@ -1543,18 +1588,12 @@
         if (Number.isFinite(mirrorPrice) && mirrorPrice >= 0) {
           const mirrorMap = {};
           BACKSLOT_HRIDS.forEach((h) => { mirrorMap[h] = mirrorPrice; });
-          overrides = mergeOverrides(overrides, mirrorMap);
+          policyOverrides = mergeOverrides(policyOverrides, mirrorMap);
         } else {
-          const zeroBackslot = {};
-          BACKSLOT_HRIDS.forEach((h) => { zeroBackslot[h] = 0; });
-          overrides = mergeOverrides(overrides, zeroBackslot);
           warnings.push(`${zone.title}: ${t("ui.mirrorPriceMissing", "mirror API price missing; back-slot mirror override skipped.")}`);
         }
-      } else {
-        const zeroBackslot = {};
-        BACKSLOT_HRIDS.forEach((h) => { zeroBackslot[h] = 0; });
-        overrides = mergeOverrides(overrides, zeroBackslot);
       }
+      const overrides = mergeOverrides(baseOverrides, policyOverrides);
       const evBid = await evApi.computeDungeonChestEV({ dungeonKey: zone.key, marketData: market, side: "bid", priceOverrides: overrides });
       const evAsk = await evApi.computeDungeonChestEV({ dungeonKey: zone.key, marketData: market, side: "ask", priceOverrides: overrides });
 
@@ -1965,6 +2004,7 @@
       mirror.addEventListener("change", () => {
         state.mirrorBackslot = !!mirror.checked;
         persistState();
+        void renderManualPanel(zones, source);
       });
     }
 
@@ -2191,6 +2231,12 @@
     }, { passive: true });
     document.addEventListener("site:lang-changed", () => {
       if (toggle.checked) void render();
+    });
+    document.addEventListener("dungeon:loot-overrides-changed", () => {
+      if (!toggle.checked) return;
+      const api = window.DungeonAPI || null;
+      const source = String(api?.getActiveApiSource?.() || api?.getPricingModel?.() || "official");
+      void renderManualPanel(readZones(), source);
     });
     document.addEventListener("keys:import-pricing-changed", () => {
       if (toggle.checked) void refreshKeyPlannerImportActionState(readZones());
