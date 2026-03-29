@@ -11,11 +11,18 @@
   const KEY_LOOT_OVERRIDE_ENABLED = "dungeon.lootOverrideEnabled";
   const KEY_LOOT_PRICE_OVERRIDES = "dungeon.lootPriceOverrides";
   const KEY_FOOD_PER_DAY = "dungeon.foodPerDay";
+  const KEY_ZONE_COMPARE_MIRROR_BACKSLOT = "dungeon.zoneCompare.mirrorBackslot.v1";
   const KEY_ZONE_COMPARE_FOOD = "dungeon.zoneCompare.food.v3";
   const KEY_ZONE_COMPARE_MINUTES = "dungeon.zoneCompare.minutes.v3";
   const KEY_FOOD_PER_DAY_BY_CONTEXT = "dungeon.foodPerDayByContext.v1";
   const DEFAULT_FOOD_PER_DAY = "10m";
   const KEY_RANGE_ENABLED = "dungeon.rangeEnabled";
+  const MIRROR_OF_PROTECTION_HRID = "/items/mirror_of_protection";
+  const BACKSLOT_HRIDS = [
+    "/items/enchanted_cloak",
+    "/items/sinister_cape",
+    "/items/chimerical_quiver",
+  ];
 
 
   const KEY_OFFICIAL_REFRESH = "dungeon.officialLastRefresh";
@@ -494,6 +501,37 @@
     syncLootOverrideStateFromStorage();
     if (!lootOverrideEnabled) return null;
     return lootPriceOverrides || {};
+  }
+
+  function getBackslotPolicyOverrides(marketSlim) {
+    const overrides = {};
+    const mirrorEnabled = storageGetItem(KEY_ZONE_COMPARE_MIRROR_BACKSLOT) === "1";
+    let defaultPrice = 0;
+
+    if (mirrorEnabled) {
+      const mirrorRow = marketSlim?.[MIRROR_OF_PROTECTION_HRID] || null;
+      const bid = Number(mirrorRow?.b);
+      const ask = Number(mirrorRow?.a);
+      const mirrorPrice = (Number.isFinite(bid) && bid >= 0)
+        ? bid
+        : ((Number.isFinite(ask) && ask >= 0) ? ask : NaN);
+      if (Number.isFinite(mirrorPrice) && mirrorPrice >= 0) defaultPrice = mirrorPrice;
+    }
+
+    BACKSLOT_HRIDS.forEach((hrid) => {
+      overrides[hrid] = defaultPrice;
+    });
+    return overrides;
+  }
+
+  function getEffectiveLootOverrides(marketSlim) {
+    const base = getActiveLootOverrides();
+    const policy = getBackslotPolicyOverrides(marketSlim);
+    if (!base && !policy) return null;
+    return {
+      ...(policy || {}),
+      ...(base || {}),
+    };
   }
 
   function buildMarketSlimFromJson(json, hridList) {
@@ -1222,6 +1260,12 @@
       return shared.normalizeModelFromSource(source);
     }
     return (source === "manual" || source === "other" || source === "keyplanner" || source === "api") ? source : "api";
+  }
+
+  function resolveExplicitApiSource(source) {
+    const raw = String(source == null ? "" : source).trim().toLowerCase();
+    if (raw === "official" || raw === "other") return sanitizeApiSource(raw);
+    return "";
   }
 
 /**
@@ -3425,7 +3469,7 @@
     const marketSlim = record?.marketSlim || null;
     if (!marketSlim || !window.DungeonChestEV?.computeDungeonChestEV) return;
 
-    const overrides = getActiveLootOverrides();
+    const overrides = getEffectiveLootOverrides(marketSlim);
     if (!overrides) return;
 
     const token = ++overrideEvToken;
@@ -3680,8 +3724,8 @@
     if (record?.ev) applyEvToUI(record.ev);
     else applyEvToUI(null);
 
-    // If overrides are enabled, recompute EV from slim market snapshot
-    if (lootOverrideEnabled && record?.marketSlim) scheduleOverrideEvRecompute();
+    // Recompute from the current slim snapshot so back-slot policy and manual overrides stay in sync.
+    if (record?.marketSlim) scheduleOverrideEvRecompute();
   }
 
 
@@ -4234,7 +4278,7 @@ ${i18nT("ui.netHour", "Net/hour")}: ${fmtC(bidBidProfit / 24)}`;
     let evAsk = null;
 
     if (marketSlim && window.DungeonChestEV?.computeDungeonChestEV) {
-      const overrides = getActiveLootOverrides();
+      const overrides = getEffectiveLootOverrides(marketSlim);
       try {
         if (!overrides && record?.ev) evBid = record.ev;
         else evBid = await window.DungeonChestEV.computeDungeonChestEV({
@@ -4962,14 +5006,29 @@ async function renderAdvancedResults() {
     getActiveApiSource: () => (typeof activeApiSource !== "undefined" ? activeApiSource : "official"),
 
     getMarketSlim: (dungeonKey, source) => {
+      const explicitApiSource = resolveExplicitApiSource(source);
+      if (explicitApiSource) {
+        return getSavedRecordFromMap(getSavedByApiSource(explicitApiSource), dungeonKey)?.marketSlim || null;
+      }
       const model = normalizeModelFromSource(source);
       return getSavedRecordByModel(dungeonKey, model)?.marketSlim || null;
     },
     getKeyPricesAB: (dungeonKey, source) => {
+      const explicitApiSource = resolveExplicitApiSource(source);
+      if (explicitApiSource) {
+        return getSavedKeyPricesAB(getSavedByApiSource(explicitApiSource), dungeonKey);
+      }
       const model = normalizeModelFromSource(source);
       return getPricesABForModel(dungeonKey, model);
     },
     refreshPricesForDungeon: async (dungeonKey, source, opts = {}) => {
+      const explicitApiSource = resolveExplicitApiSource(source || pricingModel);
+      if (explicitApiSource) {
+        return refreshApiSourceForDungeon(dungeonKey, explicitApiSource, {
+          silent: opts.silent !== false,
+          reason: opts.reason || "zone-compare",
+        });
+      }
       const model = normalizeModelFromSource(source || pricingModel);
       const apiSource = getEffectiveApiSource(model);
       return refreshApiSourceForDungeon(dungeonKey, apiSource, {
@@ -4978,6 +5037,13 @@ async function renderAdvancedResults() {
       });
     },
     refreshPricesForAllDungeons: async (source, opts = {}) => {
+      const explicitApiSource = resolveExplicitApiSource(source || pricingModel);
+      if (explicitApiSource) {
+        return refreshApiSourceForAllDungeons(explicitApiSource, {
+          silent: opts.silent !== false,
+          reason: opts.reason || "zone-compare",
+        });
+      }
       const model = normalizeModelFromSource(source || pricingModel);
       const apiSource = getEffectiveApiSource(model);
       return refreshApiSourceForAllDungeons(apiSource, {

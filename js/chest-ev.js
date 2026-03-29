@@ -35,6 +35,7 @@
   const LARGE_TREASURE_CHEST_HRID = "/items/large_treasure_chest";
   const COIN_HRID = "/items/coin";
   const COWBELL_HRID = "/items/cowbell";
+  const MIRROR_BACKSLOT_STORAGE_KEY = "dungeon.zoneCompare.mirrorBackslot.v1";
 
   // Special items (policy-controlled)
   const MIRROR_OF_PROTECTION_HRID = "/items/mirror_of_protection";
@@ -43,14 +44,6 @@
     "/items/enchanted_cloak",
     "/items/chimerical_quiver",
   ]);
-
-  const ESSENCE_BY_SPECIAL_HRID = {
-    "/items/sinister_cape": "/items/sinister_essence",
-    "/items/enchanted_cloak": "/items/enchanted_essence",
-    "/items/chimerical_quiver": "/items/chimerical_essence",
-  };
-
-  const SPECIAL_ESSENCE_QTY = 2000;
 
   // ----------------------------
   // Small utils
@@ -92,18 +85,32 @@
     return (typeof v === "number" && Number.isFinite(v)) ? v : null;
   }
 
+  function normalizeSpecialPolicyMode(raw) {
+    const mode = String(raw || "").trim().toLowerCase();
+    if (mode === "mirror" || mode === "exclude") return mode;
+    return "exclude";
+  }
+
   function getSpecialPolicyMode() {
     try {
       const cfg = window.DungeonConfig?.specialItemPolicyMode;
-      if (cfg) return String(cfg);
+      if (cfg) return normalizeSpecialPolicyMode(cfg);
       const legacyConfigName = String.fromCharCode(68, 117, 110, 103, 101, 110, 67, 111, 110, 102, 105, 103);
       const legacyCfg = window[legacyConfigName]?.specialItemPolicyMode;
-      if (legacyCfg) return String(legacyCfg);
+      if (legacyCfg) return normalizeSpecialPolicyMode(legacyCfg);
     } catch (_) { }
     try {
-      return storageGetItem("dungeon.specialPolicyMode") || "essence2000";
+      return normalizeSpecialPolicyMode(storageGetItem("dungeon.specialPolicyMode"));
     } catch (_) {
-      return "essence2000";
+      return "exclude";
+    }
+  }
+
+  function isMirrorBackslotEnabled() {
+    try {
+      return storageGetItem(MIRROR_BACKSLOT_STORAGE_KEY) === "1";
+    } catch (_) {
+      return false;
     }
   }
 
@@ -502,12 +509,8 @@
           valuedVia = (unitValue > 0) ? "special:mirror" : "special:mirror-unpriced";
           if (!unitValue) missingSet.add("(no price) Mirror of Protection");
         } else {
-          const essHrid = ESSENCE_BY_SPECIAL_HRID[itemHrid];
-          const mp3 = essHrid ? getMarketPrice(marketData, essHrid, 0, priceOverrides) : null;
-          const ev = pickSide(mp3, side);
-          unitValue = (typeof ev === "number" && Number.isFinite(ev) && ev > 0) ? (ev * SPECIAL_ESSENCE_QTY) : 0;
-          valuedVia = (unitValue > 0) ? "special:essence*2000" : "special:essence-unpriced";
-          if (!unitValue) missingSet.add(`(no price) ${essHrid || "essence"}`);
+          unitValue = 0;
+          valuedVia = "special:excluded";
         }
       }
 
@@ -558,7 +561,7 @@
 
       const contrib = unitValue * meanQty * p;
 
-      if (!overridden && unitValue === 0 && meanQty * p > 0) {
+      if (!overridden && unitValue === 0 && meanQty * p > 0 && !String(valuedVia || "").startsWith("special:")) {
         const nm = nameForHrid(itemHrid, init) || itemHrid;
         if (itemHrid !== COIN_HRID && !ctx?.tokenLikeHrids?.has(itemHrid)) {
           missingSet.add(`(no price) ${nm}`);
@@ -756,6 +759,17 @@
       if (Number.isFinite(tokenValue) && tokenValue > 0) return tokenValue;
     }
 
+    if (SPECIAL_ITEM_HRIDS.has(hrid)) {
+      if (isMirrorBackslotEnabled()) {
+        const mirrorPrice = getMarketPrice(marketData || {}, MIRROR_OF_PROTECTION_HRID, 0, null);
+        const mirrorBid = pickSide(mirrorPrice, "bid");
+        if (typeof mirrorBid === "number" && Number.isFinite(mirrorBid) && mirrorBid >= 0) return mirrorBid;
+        const mirrorAsk = pickSide(mirrorPrice, "ask");
+        if (typeof mirrorAsk === "number" && Number.isFinite(mirrorAsk) && mirrorAsk >= 0) return mirrorAsk;
+      }
+      return 0;
+    }
+
     const marketPrice = getMarketPrice(marketData || {}, hrid, 0, null);
     const primary = pickSide(marketPrice, side);
     if (typeof primary === "number" && Number.isFinite(primary) && primary > 0) return primary;
@@ -875,7 +889,6 @@
 
     // Special policy dependencies
     hrids.add(MIRROR_OF_PROTECTION_HRID);
-    for (const h of Object.values(ESSENCE_BY_SPECIAL_HRID)) hrids.add(h);
     hrids.add(COWBELL_HRID);
     const cowbellBagHrid = await findCowbellBagHrid();
     if (cowbellBagHrid) hrids.add(cowbellBagHrid);

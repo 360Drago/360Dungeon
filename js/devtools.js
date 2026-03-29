@@ -573,7 +573,6 @@
     const low = await buildLowDropOverrides(short, !!zc.lowDrop);
 
     let out = mergeOverrideMaps(null, low) || {};
-    if (zc.manualLoot) out = mergeOverrideMaps(out, zc.manualOverrides || {}) || {};
 
     if (zc.mirrorBackslot) {
       const mirrorAB = extractAskBid(marketData, MIRROR_HRID);
@@ -592,6 +591,8 @@
       BACKSLOT_HRIDS.forEach((h) => { zeroBackslot[h] = 0; });
       out = mergeOverrideMaps(out, zeroBackslot) || {};
     }
+
+    if (zc.manualLoot) out = mergeOverrideMaps(out, zc.manualOverrides || {}) || {};
 
     return Object.keys(out).length ? out : null;
   }
@@ -787,10 +788,11 @@
     return Number.isFinite(n) ? n : null;
   }
 
-  function appendCompareCell(grid, text, className) {
+  function appendCompareCell(grid, text, className, title = "") {
     const cell = document.createElement("div");
     cell.className = className;
     cell.textContent = text;
+    if (title) cell.title = String(title);
     grid.appendChild(cell);
   }
 
@@ -905,12 +907,14 @@
     return delta > 0 ? "pos" : "neg";
   }
 
-  async function buildApiCompareData(dungeonKey) {
+  async function buildApiCompareData(dungeonKey, activeApiSource = "official") {
     const api = window.DungeonAPI || {};
     const activeContext = await getActiveCalculatorPricingContext(dungeonKey);
     const compareDungeonKeys = Array.isArray(activeContext.dungeonKeys) && activeContext.dungeonKeys.length
       ? activeContext.dungeonKeys
       : getAllDungeonKeys(dungeonKey);
+    const leftSource = normalizeApiSource(activeApiSource) === "other" ? "other" : "official";
+    const rightSource = leftSource === "other" ? "official" : "other";
     const officialMarket = await getMergedMarketSlimForDungeons(api, compareDungeonKeys, "official");
     const otherMarket = await getMergedMarketSlimForDungeons(api, compareDungeonKeys, "other");
     const hrids = new Set(activeContext.hrids || []);
@@ -929,12 +933,14 @@
     const allRows = Array.from(hrids).map((hrid) => {
       const official = extractAskBid(officialMarket, hrid);
       const other = extractAskBid(otherMarket, hrid);
-      const officialBid = normalizeComparablePrice(official?.bid);
-      const otherBid = normalizeComparablePrice(other?.bid);
-      const officialAsk = normalizeComparablePrice(official?.ask);
-      const otherAsk = normalizeComparablePrice(other?.ask);
-      const bidDelta = (officialBid !== null && otherBid !== null) ? (otherBid - officialBid) : NaN;
-      const askDelta = (officialAsk !== null && otherAsk !== null) ? (otherAsk - officialAsk) : NaN;
+      const left = leftSource === "other" ? other : official;
+      const right = rightSource === "other" ? other : official;
+      const leftBid = normalizeComparablePrice(left?.bid);
+      const rightBid = normalizeComparablePrice(right?.bid);
+      const leftAsk = normalizeComparablePrice(left?.ask);
+      const rightAsk = normalizeComparablePrice(right?.ask);
+      const bidDelta = (leftBid !== null && rightBid !== null) ? (leftBid - rightBid) : NaN;
+      const askDelta = (leftAsk !== null && rightAsk !== null) ? (leftAsk - rightAsk) : NaN;
       return {
         hrid,
         name: itemMap?.[hrid]?.name || fallbackItemName(hrid),
@@ -959,9 +965,38 @@
       shownCount: rows.length,
       filter: devApiDiffFilter,
       sourceLabel: hrids.size && activeContext.hrids?.length ? activeContext.label : t("ui.relevantItems", "relevant items"),
+      deltaLeftSource: leftSource,
+      deltaRightSource: rightSource,
+      deltaLeftLabel: apiSourceLabel(leftSource),
+      deltaRightLabel: apiSourceLabel(rightSource),
       officialReady: !!officialMarket,
       otherReady: !!otherMarket,
     };
+  }
+
+  function buildApiCompareCellTitle(row, side, data = {}) {
+    const leftSource = data.deltaLeftSource === "official" ? "official" : "other";
+    const rightSource = data.deltaRightSource === "other" ? "other" : "official";
+    const leftLabel = String(data.deltaLeftLabel || apiSourceLabel(leftSource));
+    const rightLabel = String(data.deltaRightLabel || apiSourceLabel(rightSource));
+    const sideLabel = side === "ask" ? t("ui.ask", "ask") : t("ui.bid", "bid");
+    const leftQuote = leftSource === "other" ? row?.other : row?.official;
+    const rightQuote = rightSource === "other" ? row?.other : row?.official;
+    const leftValue = side === "ask" ? leftQuote?.ask : leftQuote?.bid;
+    const rightValue = side === "ask" ? rightQuote?.ask : rightQuote?.bid;
+    const delta = side === "ask" ? row?.askDelta : row?.bidDelta;
+    return tf(
+      "ui.apiCompareCellTitle",
+      "{left} {side}: {leftValue} | {right} {side}: {rightValue} | Delta: {delta}",
+      {
+        left: leftLabel,
+        right: rightLabel,
+        side: sideLabel,
+        leftValue: fmt(leftValue),
+        rightValue: fmt(rightValue),
+        delta: formatDelta(delta),
+      }
+    );
   }
 
   function renderApiCompare(data = {}) {
@@ -970,7 +1005,7 @@
     if (!grid || !meta) return;
 
     grid.innerHTML = "";
-    meta.textContent = tf(
+    const showingText = tf(
       "ui.apiCompareShowing",
       "Showing {shown} of {total} {label}",
       {
@@ -979,14 +1014,30 @@
         label: String(data.sourceLabel || t("ui.relevantItems", "relevant items")),
       }
     );
+    const compareFormulaText = tf(
+      "ui.apiCompareFormula",
+      "Delta = {left} - {right}",
+      {
+        left: String(data.deltaLeftLabel || apiSourceLabel("other")),
+        right: String(data.deltaRightLabel || apiSourceLabel("official")),
+      }
+    );
+    const positiveMeansText = tf(
+      "ui.apiComparePositiveMeans",
+      "positive means {left} is higher",
+      {
+        left: String(data.deltaLeftLabel || apiSourceLabel("other")),
+      }
+    );
+    meta.textContent = `${showingText} • ${compareFormulaText} • ${positiveMeansText}`;
     if (!data.officialReady || !data.otherReady) {
       meta.textContent += ` • ${t("ui.apiCompareMissingSource", "Missing one saved API snapshot")}`;
     }
 
     [
       t("ui.items", "Item"),
-      t("ui.bid", "bid"),
-      t("ui.ask", "ask"),
+      tf("ui.bidDelta", "Bid Δ"),
+      tf("ui.askDelta", "Ask Δ"),
     ].forEach((header) => {
       const el = document.createElement("div");
       el.className = "dev-th";
@@ -1006,9 +1057,19 @@
 
     data.rows.forEach((row) => {
       const rowClass = row.different ? " dev-compare-row is-different" : " dev-compare-row";
-      appendCompareCell(grid, row.name, `dev-compare-cell dev-compare-name${rowClass}`);
-      appendCompareCell(grid, formatDelta(row.bidDelta), `dev-compare-cell dev-compare-delta ${deltaClass(row.bidDelta)}${rowClass}`);
-      appendCompareCell(grid, formatDelta(row.askDelta), `dev-compare-cell dev-compare-delta ${deltaClass(row.askDelta)}${rowClass}`);
+      appendCompareCell(grid, row.name, `dev-compare-cell dev-compare-name${rowClass}`, row.hrid || row.name);
+      appendCompareCell(
+        grid,
+        formatDelta(row.bidDelta),
+        `dev-compare-cell dev-compare-delta ${deltaClass(row.bidDelta)}${rowClass}`,
+        buildApiCompareCellTitle(row, "bid", data)
+      );
+      appendCompareCell(
+        grid,
+        formatDelta(row.askDelta),
+        `dev-compare-cell dev-compare-delta ${deltaClass(row.askDelta)}${rowClass}`,
+        buildApiCompareCellTitle(row, "ask", data)
+      );
     });
   }
 
@@ -1225,7 +1286,7 @@
       const { dungeonKey, pricing, activeApiSource, runs, buff, tax, side, prices, selectedTier } = ctx;
       const [{ ev }, apiCompare] = await Promise.all([
         computeDevRefreshData(ctx),
-        buildApiCompareData(dungeonKey),
+        buildApiCompareData(dungeonKey, activeApiSource),
       ]);
 
       renderSummaryFields({

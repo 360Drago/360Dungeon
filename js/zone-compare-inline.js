@@ -1509,6 +1509,28 @@
     return out;
   }
 
+  function buildBackslotPolicyOverrides(market, warnings, zoneTitle) {
+    const out = {};
+    let defaultPrice = 0;
+
+    if (state.mirrorBackslot) {
+      const mirrorAB = extractAskBid(market, MIRROR_HRID);
+      const mirrorPrice = (Number.isFinite(mirrorAB.bid) && mirrorAB.bid >= 0)
+        ? mirrorAB.bid
+        : ((Number.isFinite(mirrorAB.ask) && mirrorAB.ask >= 0) ? mirrorAB.ask : NaN);
+      if (Number.isFinite(mirrorPrice) && mirrorPrice >= 0) {
+        defaultPrice = mirrorPrice;
+      } else if (Array.isArray(warnings) && zoneTitle) {
+        warnings.push(`${zoneTitle}: ${t("ui.mirrorPriceMissing", "mirror API price missing; back-slot mirror override skipped.")}`);
+      }
+    }
+
+    BACKSLOT_HRIDS.forEach((hrid) => {
+      out[hrid] = defaultPrice;
+    });
+    return out;
+  }
+
   async function lowDropOverrides(shortKey) {
     if (!state.lowDrop) return {};
     const raw = window.OpenableLootRaw || null;
@@ -1579,21 +1601,9 @@
 
     try {
       const low = await lowDropOverrides(zone.short);
-      let policyOverrides = mergeOverrides(low, null);
-      if (state.mirrorBackslot) {
-        const mirrorAB = extractAskBid(market, MIRROR_HRID);
-        const mirrorPrice = (Number.isFinite(mirrorAB.bid) && mirrorAB.bid >= 0)
-          ? mirrorAB.bid
-          : ((Number.isFinite(mirrorAB.ask) && mirrorAB.ask >= 0) ? mirrorAB.ask : NaN);
-        if (Number.isFinite(mirrorPrice) && mirrorPrice >= 0) {
-          const mirrorMap = {};
-          BACKSLOT_HRIDS.forEach((h) => { mirrorMap[h] = mirrorPrice; });
-          policyOverrides = mergeOverrides(policyOverrides, mirrorMap);
-        } else {
-          warnings.push(`${zone.title}: ${t("ui.mirrorPriceMissing", "mirror API price missing; back-slot mirror override skipped.")}`);
-        }
-      }
-      const overrides = mergeOverrides(baseOverrides, policyOverrides);
+      const backslotPolicy = buildBackslotPolicyOverrides(market, warnings, zone.title);
+      const policyOverrides = mergeOverrides(low, backslotPolicy);
+      const overrides = mergeOverrides(policyOverrides, baseOverrides);
       const evBid = await evApi.computeDungeonChestEV({ dungeonKey: zone.key, marketData: market, side: "bid", priceOverrides: overrides });
       const evAsk = await evApi.computeDungeonChestEV({ dungeonKey: zone.key, marketData: market, side: "ask", priceOverrides: overrides });
 
