@@ -68,6 +68,7 @@
   const cards = Array.from(document.querySelectorAll(".card"));
   const selectionBar = document.getElementById("selectionBar");
   const barMarker = document.getElementById("barMarker");
+  const personalLootBanner = document.getElementById("personalLootBanner");
 
   const tierButtons = Array.from(document.querySelectorAll(".tierBtn"));
   const tierHint = document.getElementById("tierHint");
@@ -402,6 +403,10 @@
     return getShared("DungeonMetaShared");
   }
 
+  function getPersonalLootImportShared() {
+    return getShared("DungeonPersonalLootImportShared");
+  }
+
   function storageGetItem(key) {
     return storageCall("getItem", key);
   }
@@ -440,12 +445,26 @@
       if (v && typeof v === 'object') {
         const mode = (typeof v.mode === 'string') ? v.mode : null;
         const price = (typeof v.price === 'number' && Number.isFinite(v.price)) ? Math.round(v.price) : undefined;
-        if (mode === 'Bid' || mode === 'Ask') cleaned[k] = { mode };
+        if (mode === 'Bid' || mode === 'Ask') cleaned[k] = (typeof price === 'number' && price > 0) ? { mode, price } : { mode };
         else if (mode === 'Custom' && typeof price === 'number') cleaned[k] = { mode: 'Custom', price };
         continue;
       }
     }
     return cleaned;
+  }
+
+  function readOptionalNonNegativePrice(value) {
+    if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? value : null;
+    if (value == null) return null;
+    const text = String(value).trim();
+    if (!text) return null;
+    const n = Number(text);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  function readOptionalPositivePrice(value) {
+    const n = readOptionalNonNegativePrice(value);
+    return n != null && n > 0 ? n : null;
   }
 
   function saveLootPriceOverrides(map) {
@@ -767,6 +786,12 @@
     const translateFormat = getTextShared()?.tf;
     if (typeof translateFormat === "function") return translateFormat(key, fallback, vars);
     return String(fallback || "");
+  }
+
+  function formatCount(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return "0";
+    return Math.round(n).toLocaleString();
   }
 
   function escapeHtml(value) {
@@ -3156,6 +3181,7 @@
   window.setInterval(tickTimers, 5000);
   document.addEventListener("site:lang-changed", updateApiSourceFooter);
   document.addEventListener("site:lang-changed", syncPricingRefreshControls);
+  document.addEventListener("site:lang-changed", () => updatePersonalLootBanner());
   document.addEventListener("site:lang-changed", () => {
     window.requestAnimationFrame(() => refreshVisibleUiForLanguage());
   });
@@ -3540,6 +3566,7 @@
       : items;
 
     // Build rows
+    let normalizedAskLocks = false;
     lootOverrideList.innerHTML = "";
     for (const item of filtered) {
       const hrid = item.hrid;
@@ -3572,10 +3599,15 @@
       const currentMode = getLootOverrideMode(overrideVal);
       const isCustom = currentMode === "Custom";
       const isAskLocked = currentMode === "Ask";
-      const askPrice = Number.isFinite(Number(item?.askPrice)) && Number(item.askPrice) >= 0
-        ? Number(item.askPrice)
+      const storedAskPrice = (overrideVal && typeof overrideVal === "object" && currentMode === "Ask")
+        ? readOptionalPositivePrice(overrideVal.price)
         : null;
-      const askDisplay = Number.isFinite(askPrice) ? askPrice : null;
+      const askPrice = readOptionalPositivePrice(item?.askPrice) ?? storedAskPrice;
+      if (isAskLocked && storedAskPrice == null && askPrice != null && typeof hrid === "string") {
+        lootPriceOverrides[hrid] = { mode: "Ask", price: Math.round(askPrice) };
+        normalizedAskLocks = true;
+      }
+      const askDisplay = askPrice != null ? askPrice : null;
       if (isAskLocked) {
         row.classList.add("isAskLocked");
         input.value = Number.isFinite(askDisplay) ? fmtCoins(askDisplay) : "";
@@ -3589,9 +3621,8 @@
       } else {
         row.classList.add("isDefault");
         input.value = "";
-        const def = Number.isFinite(Number(item?.defaultPrice))
-          ? Number(item.defaultPrice)
-          : ((typeof hrid === "string") ? getDefaultUnitPrice(hrid) : null);
+        const def = readOptionalNonNegativePrice(item?.defaultPrice)
+          ?? ((typeof hrid === "string") ? getDefaultUnitPrice(hrid) : null);
         if (typeof def === "number") input.placeholder = fmtCoins(def);
       }
 
@@ -3672,7 +3703,9 @@
         e.preventDefault();
         if (typeof hrid !== "string") return;
         if (getLootOverrideMode(lootPriceOverrides[hrid]) === "Ask") delete lootPriceOverrides[hrid];
-        else lootPriceOverrides[hrid] = { mode: "Ask" };
+        else lootPriceOverrides[hrid] = Number.isFinite(askPrice) && askPrice >= 0
+          ? { mode: "Ask", price: Math.round(askPrice) }
+          : { mode: "Ask" };
         saveLootPriceOverrides(lootPriceOverrides);
         renderLootOverrideList({ keepScroll: true });
         scheduleOverrideEvRecompute();
@@ -3705,6 +3738,9 @@
       lootOverrideList.appendChild(row);
     }
 
+    if (normalizedAskLocks) {
+      saveLootPriceOverrides(lootPriceOverrides);
+    }
     if (keepScroll) lootOverrideList.scrollTop = prevScroll;
   }
 
@@ -3779,6 +3815,29 @@
     });
   }
 
+  function updatePersonalLootBanner(summary = null) {
+    if (!personalLootBanner) return;
+    const shared = getPersonalLootImportShared();
+    const nextSummary = summary || shared?.getStatusSummary?.() || null;
+    if (!nextSummary?.active) {
+      personalLootBanner.textContent = "";
+      personalLootBanner.classList.add("hidden");
+      return;
+    }
+
+    const playerLabel = String(nextSummary.playerName || nextSummary.playerId || i18nT("ui.personalLootSelectedPlayer", "selected player")).trim();
+    personalLootBanner.textContent = i18nF(
+      "ui.personalLootBannerActive",
+      "Warning: personal chest loot is active for {player}. Chest EV uses your observed averages where imported coverage exists. Imported chest records: {chests}. Tracked opens: {opens}.",
+      {
+        player: playerLabel || i18nT("ui.personalLootSelectedPlayer", "selected player"),
+        chests: formatCount(nextSummary.chestCount),
+        opens: formatCount(nextSummary.totalTrackedOpens),
+      }
+    );
+    personalLootBanner.classList.remove("hidden");
+  }
+
   function updateQuickStartHint() {
     if (!quickStartHint) return;
     if (selectedDungeon) {
@@ -3834,6 +3893,30 @@
 
     officialSaved = clearEvCache(officialSaved, KEY_OFFICIAL_PRICES);
     otherSaved = clearEvCache(otherSaved, KEY_OTHER_PRICES);
+  }
+
+  function clearEvFieldsFromStore(store) {
+    if (!store || typeof store !== "object") return {};
+    const next = {};
+    Object.entries(store).forEach(([dungeonKey, record]) => {
+      if (!record || typeof record !== "object") {
+        next[dungeonKey] = record;
+        return;
+      }
+      const nextRecord = { ...record };
+      delete nextRecord.ev;
+      delete nextRecord.evBid;
+      delete nextRecord.evAsk;
+      next[dungeonKey] = nextRecord;
+    });
+    return next;
+  }
+
+  function invalidateAllSavedEvCaches() {
+    officialSaved = clearEvFieldsFromStore(officialSaved);
+    otherSaved = clearEvFieldsFromStore(otherSaved);
+    savePerDungeonPrices(KEY_OFFICIAL_PRICES, officialSaved);
+    savePerDungeonPrices(KEY_OTHER_PRICES, otherSaved);
   }
 
   function refreshVisibleUiForLanguage() {
@@ -5151,6 +5234,30 @@ async function renderAdvancedResults() {
       void rerenderVisibleResults();
     }
   });
+
+  document.addEventListener("dungeon:personal-loot-import-changed", (event) => {
+    const detail = event?.detail || {};
+    updatePersonalLootBanner(detail.summary || null);
+    invalidateAllSavedEvCaches();
+    updateChestEvUI();
+    updateAllSummaries();
+    void rerenderVisibleResults();
+    void renderLootOverrideList({ keepScroll: true, ensureCache: true });
+
+    if (detail.reason === "imported") {
+      const playerLabel = String(detail.summary?.playerName || detail.summary?.playerId || "selected player");
+      showToast(i18nF("ui.personalLootImportedToast", "Using personal chest loot for {player}.", {
+        player: playerLabel,
+      }));
+    } else if (detail.reason === "cleared") {
+      showToast(i18nT("ui.personalLootClearedToast", "Personal chest loot import cleared."));
+    }
+  });
+
+  if (window.DungeonPersonalLootImportShared?.hasActiveImport?.()) {
+    invalidateAllSavedEvCaches();
+  }
+  updatePersonalLootBanner();
 
 
 

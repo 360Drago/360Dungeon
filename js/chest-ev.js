@@ -118,6 +118,10 @@
     return getShared("DungeonInitDataShared");
   }
 
+  function getPersonalLootImportShared() {
+    return getShared("DungeonPersonalLootImportShared");
+  }
+
   function getItemHridShared() {
     return getShared("DungeonItemHridShared");
   }
@@ -156,6 +160,61 @@
     }
   }
 
+  function readPersonalOpenableProfile(openableHrid) {
+    const shared = getPersonalLootImportShared();
+    if (!shared || typeof shared.getOpenableProfile !== "function") return null;
+    try {
+      return shared.getOpenableProfile(openableHrid);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function rowExpectedQty(row) {
+    const explicit = safeNum(row?.expectedQty);
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+    const chance = safeNum(row?.chance);
+    const meanCount = safeNum(row?.meanCount);
+    if (Number.isFinite(chance) && Number.isFinite(meanCount) && chance > 0 && meanCount > 0) {
+      return chance * meanCount;
+    }
+    return 0;
+  }
+
+  function getOpenableRowsForValuation(openableHrid, raw) {
+    const personal = readPersonalOpenableProfile(openableHrid);
+    if (personal?.rows?.length) {
+      return personal.rows.map((row) => ({
+        ...row,
+        source: "personal",
+      }));
+    }
+    const rows = raw?.getDirectDetailRows?.(openableHrid) || [];
+    return rows.map((row) => ({
+      ...row,
+      source: "theoretical",
+    }));
+  }
+
+  function hasOpenableValuationRows(openableHrid, raw) {
+    if (!openableHrid) return false;
+    const personal = readPersonalOpenableProfile(openableHrid);
+    if (personal?.rows?.length) return true;
+    const rows = raw?.getDirectDetailRows?.(openableHrid);
+    return !!(rows && rows.length);
+  }
+
+  function getLockedTokenValue(itemHrid, ctx, overrideMode) {
+    if (!ctx?.tokenLikeHrids?.has(itemHrid)) return null;
+    const mode = String(overrideMode || "").toLowerCase();
+    const lockedSide = mode === "ask" ? "ask" : (mode === "bid" ? "bid" : "");
+    if (!lockedSide) return null;
+    const explicit = safeNum(ctx?.tokenValueBySide?.[lockedSide]);
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+    const fallback = safeNum(ctx?.tokenValue);
+    return (Number.isFinite(fallback) && fallback > 0) ? fallback : null;
+  }
+
   // ----------------------------
   // Market price + overrides
   // ----------------------------
@@ -167,35 +226,42 @@
       const ov = priceOverrides[hrid];
 
       if (typeof ov === "number" && Number.isFinite(ov)) {
-        return { ask: ov, bid: ov, overridden: true };
+        return { ask: ov, bid: ov, overridden: true, overrideMode: "custom" };
       }
 
       if (ov && typeof ov === "object") {
         const mode = String(ov.mode || "").toLowerCase();
         const p = safeNum(ov.price);
+        const fallbackLockedPrice = Number.isFinite(p) && p > 0 ? p : null;
 
         if (mode === "custom" && Number.isFinite(p)) {
-          return { ask: p, bid: p, overridden: true };
+          return { ask: p, bid: p, overridden: true, overrideMode: "custom" };
         }
 
-        // "bid"/"ask" modes: still come from market, but treat as overridden choice
+        // "bid"/"ask" modes: still come from market, but if the market has no direct quote
+        // we leave the value unresolved so token/openable fallbacks can still price it.
         const base = getMarketPrice(marketData, hrid, enhancementLevel, null);
-        if (!base) return { ask: 0, bid: 0, overridden: true };
+        if (!base) {
+          const value = fallbackLockedPrice;
+          return { ask: value, bid: value, overridden: true, overrideMode: mode };
+        }
 
         if (mode === "bid") {
           const b = pickSide(base, "bid");
-          return { ask: b, bid: b, overridden: true };
+          const value = (typeof b === "number" && Number.isFinite(b) && b > 0) ? b : fallbackLockedPrice;
+          return { ask: value, bid: value, overridden: true, overrideMode: "bid" };
         }
         if (mode === "ask") {
           const a = pickSide(base, "ask");
-          return { ask: a, bid: a, overridden: true };
+          const value = (typeof a === "number" && Number.isFinite(a) && a > 0) ? a : fallbackLockedPrice;
+          return { ask: value, bid: value, overridden: true, overrideMode: "ask" };
         }
 
-        return { ask: 0, bid: 0, overridden: true };
+        return { ask: 0, bid: 0, overridden: true, overrideMode: mode || "custom" };
       }
 
       // explicit "off"/null -> 0 override
-      return { ask: 0, bid: 0, overridden: true };
+      return { ask: 0, bid: 0, overridden: true, overrideMode: "off" };
     }
 
     const entry = marketData?.[hrid];
@@ -471,16 +537,18 @@
     const memoKey = `${openableHrid}|${side}`;
     if (memo.has(memoKey)) return memo.get(memoKey);
 
-    const rows = raw.getDirectDetailRows(openableHrid) || [];
+    const rows = getOpenableRowsForValuation(openableHrid, raw);
     if (!rows.length) return null;
+    const activePersonalProfile = readPersonalOpenableProfile(openableHrid);
 
     const breakdown = [];
     const missingSet = ctx?.missingSet || new Set();
 
     for (const r of rows) {
       const itemHrid = r.itemHrid;
-      const p = Number.isFinite(r.chance) ? r.chance : 0;
-      const meanQty = Number.isFinite(r.meanCount) ? r.meanCount : 0;
+      const expectedQty = rowExpectedQty(r);
+      const p = Number.isFinite(Number(r.chance)) ? Number(r.chance) : (expectedQty > 0 ? 1 : 0);
+      const meanQty = Number.isFinite(Number(r.meanCount)) ? Number(r.meanCount) : expectedQty;
 
       // unit value resolution (override -> special -> token-like/cowbell/coin -> market -> openableEV -> tokenShop fallback -> 0)
       let unitValue = null;
@@ -489,11 +557,20 @@
       const mp = getMarketPrice(marketData, itemHrid, 0, priceOverrides);
       const overridden = !!mp?.overridden;
       const marketSidePrice = pickSide(mp, side);
+      const overrideMode = String(mp?.overrideMode || "").toLowerCase();
 
       // 1) override (explicit)
       if (overridden) {
-        unitValue = (typeof marketSidePrice === "number" && Number.isFinite(marketSidePrice)) ? marketSidePrice : 0;
-        valuedVia = "override";
+        if (typeof marketSidePrice === "number" && Number.isFinite(marketSidePrice)) {
+          unitValue = marketSidePrice;
+          valuedVia = "override";
+        } else {
+          const lockedTokenValue = getLockedTokenValue(itemHrid, ctx, overrideMode);
+          if (Number.isFinite(lockedTokenValue) && lockedTokenValue > 0) {
+            unitValue = lockedTokenValue;
+            valuedVia = `override:tokenValue:${overrideMode || side}`;
+          }
+        }
       }
 
       // 2) special item policy (only if not overridden)
@@ -537,8 +614,7 @@
       // 5) nested openable -> EV of that openable
       if (unitValue == null && !SPECIAL_ITEM_HRIDS.has(itemHrid)) {
         // Only treat as openable if it has rows
-        const subRows = raw.getDirectDetailRows(itemHrid);
-        if (subRows && subRows.length) {
+        if (hasOpenableValuationRows(itemHrid, raw)) {
           const sub = await computeOpenableEV(itemHrid, marketData, side, ctx, memo, priceOverrides);
           if (sub && typeof sub.ev === "number") {
             unitValue = sub.ev;
@@ -559,9 +635,9 @@
       // default 0
       if (unitValue == null) unitValue = 0;
 
-      const contrib = unitValue * meanQty * p;
+      const contrib = unitValue * expectedQty;
 
-      if (!overridden && unitValue === 0 && meanQty * p > 0 && !String(valuedVia || "").startsWith("special:")) {
+      if (!overridden && unitValue === 0 && expectedQty > 0 && !String(valuedVia || "").startsWith("special:")) {
         const nm = nameForHrid(itemHrid, init) || itemHrid;
         if (itemHrid !== COIN_HRID && !ctx?.tokenLikeHrids?.has(itemHrid)) {
           missingSet.add(`(no price) ${nm}`);
@@ -573,16 +649,24 @@
         hrid: itemHrid,
         chance: p,
         meanQty,
+        expectedQty,
         unitValue,
         contrib,
         valuedVia,
+        rowSource: r.source || "theoretical",
+        observedOpens: Number(r.observedOpens) || Number(activePersonalProfile?.opens) || 0,
       });
     }
 
     const ev = breakdown.reduce((s, x) => s + (Number(x.contrib) || 0), 0);
     breakdown.sort((a, b) => (b.contrib - a.contrib) || String(a.item).localeCompare(String(b.item)));
 
-    const result = { ev, breakdown };
+    const result = {
+      ev,
+      breakdown,
+      sourceMode: activePersonalProfile?.rows?.length ? "personal" : "theoretical",
+      observedOpens: Number(activePersonalProfile?.opens) || 0,
+    };
     memo.set(memoKey, result);
     return result;
   }
@@ -627,6 +711,12 @@
     const tokenValue = tokenInfo.tokenValue;
     const bestConversion = tokenInfo.bestConversion;
     const tokenShopValueByHrid = buildTokenShopValueByHrid(tokenInfo.offers, tokenValue);
+    const tokenInfoBid = side === "bid"
+      ? tokenInfo
+      : await computeTokenValue(dk, marketData, "bid", priceOverrides);
+    const tokenInfoAsk = side === "ask"
+      ? tokenInfo
+      : await computeTokenValue(dk, marketData, "ask", priceOverrides);
 
     // Cowbell
     const cowbellEachInfo = await computeCowbellEachValue(marketData, side, priceOverrides);
@@ -638,6 +728,10 @@
 
     const ctx = {
       tokenValue,
+      tokenValueBySide: {
+        bid: tokenInfoBid?.tokenValue || 0,
+        ask: tokenInfoAsk?.tokenValue || 0,
+      },
       tokenLikeHrids,
       cowbellEach: cowbellEachInfo.each,
       cowbellSource: cowbellEachInfo.source,
@@ -653,11 +747,12 @@
 
     // Refined chest EV + expected shards
     const raw = window.OpenableLootRaw;
-    const refinedExpectedMap = raw.getExpectedMap(refinedHrid, { resolveNested: false });
+    const refinedRows = getOpenableRowsForValuation(refinedHrid, raw);
     let refinedExpectedShards = 0;
     let refinedShardHrid = null;
-    for (const [h, q] of Object.entries(refinedExpectedMap || {})) {
-      const qq = Number(q);
+    for (const row of refinedRows) {
+      const h = row?.itemHrid;
+      const qq = rowExpectedQty(row);
       if (Number.isFinite(qq) && qq > 0) {
         refinedExpectedShards += qq;
         refinedShardHrid = refinedShardHrid || h;
@@ -691,7 +786,8 @@
       }
     }
 
-    const refinedChestEv = refinedShardUnitValue * refinedExpectedShards;
+    const refinedRes = await computeOpenableEV(refinedHrid, marketData, side, ctx, memo, priceOverrides);
+    const refinedChestEv = refinedRes?.ev ?? (refinedShardUnitValue * refinedExpectedShards);
 
     // Main chest EV (this uses OpenableLootRaw rows + nested openables)
     const chestRes = await computeOpenableEV(chestHrid, marketData, side, ctx, memo, priceOverrides);

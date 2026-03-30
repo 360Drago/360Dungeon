@@ -12,6 +12,8 @@
   let devApiCompareOpen = true;
   let devChestBreakdownOpen = true;
   let devRefreshTimer = 0;
+  let devPersonalLootStatusText = "";
+  let devPersonalLootStatusIsError = false;
   const ZC_STORAGE = {
     lowDrop: "dungeon.zoneCompare.removeLowDrops.v3",
     legacyManualLoot: "dungeon.zoneCompare.manualLoot.v1",
@@ -58,6 +60,10 @@
 
   function getMetaShared() {
     return getShared("DungeonMetaShared");
+  }
+
+  function getPersonalLootImportShared() {
+    return getShared("DungeonPersonalLootImportShared");
   }
 
   function t(key, fallback) {
@@ -254,6 +260,53 @@
         font-size:12px;
         padding:6px 0 2px;
       }
+      #devPanel .dev-import-summary,
+      #devPanel .dev-import-status{
+        color:var(--muted-color,#9ca3af);
+        font-size:12px;
+        line-height:1.5;
+        white-space:pre-wrap;
+      }
+      #devPanel .dev-import-textarea{
+        width:100%;
+        min-height:132px;
+        resize:vertical;
+        border:1px solid rgba(255,255,255,.16);
+        background:rgba(255,255,255,.05);
+        color:inherit;
+        border-radius:10px;
+        padding:10px 12px;
+        font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      }
+      #devPanel .dev-import-textarea::placeholder{
+        color:rgba(255,255,255,.42);
+      }
+      #devPanel .dev-import-status{
+        min-height:18px;
+      }
+      #devPanel .dev-import-status.is-error{
+        color:#fca5a5;
+      }
+      #devPanel .dev-actions{
+        display:flex;
+        flex-wrap:wrap;
+        gap:8px;
+      }
+      #devPanel .dev-btn{
+        border:1px solid rgba(255,255,255,.18);
+        background:rgba(255,255,255,.06);
+        color:inherit;
+        border-radius:10px;
+        padding:8px 12px;
+        font-size:12px;
+        cursor:pointer;
+      }
+      #devPanel .dev-btn:hover{
+        background:rgba(255,255,255,.1);
+      }
+      #devPanel .dev-btn.dev-btn-danger{
+        border-color:rgba(248,113,113,.35);
+      }
     `;
     document.head.appendChild(style);
   }
@@ -337,7 +390,23 @@
           <h4>${t("ui.trace", "Trace")}</h4>
           <pre id="devTrace" class="dev-pre"></pre>
         </div>
+        <div class="dev-section">
+          <h4>${t("ui.personalChestLootImport", "Personal chest loot import")}</h4>
+          <div id="devPersonalLootSummary" class="dev-import-summary">${t("ui.loading", "Loading...")}</div>
+          <textarea
+            id="devPersonalLootPaste"
+            class="dev-import-textarea"
+            rows="8"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            placeholder="${t("ui.personalLootPastePlaceholder", "Paste the 360Dungeon chest export JSON here, then click Import pasted JSON.")}"
+            aria-label="${t("ui.personalLootPasteLabel", "Paste personal chest loot export JSON")}"></textarea>
+          <div id="devPersonalLootStatus" class="dev-import-status" aria-live="polite"></div>
+        </div>
         <div class="dev-actions">
+          <button id="devPersonalLootImportBtn" class="dev-btn">${t("ui.importPastedJson", "Import pasted JSON")}</button>
+          <button id="devPersonalLootResetBtn" class="dev-btn dev-btn-danger">${t("ui.clearImport", "Clear import")}</button>
           <button id="devRefresh" class="dev-btn">${t("ui.refresh", "Refresh")}</button>
         </div>
       </div>
@@ -347,6 +416,19 @@
     if (closeBtn) closeBtn.addEventListener("click", () => panel.classList.add("hidden"));
     const refreshBtn = document.getElementById("devRefresh");
     if (refreshBtn) refreshBtn.addEventListener("click", () => void refresh());
+    const importBtn = document.getElementById("devPersonalLootImportBtn");
+    if (importBtn) importBtn.addEventListener("click", () => void handlePersonalLootImport());
+    const resetBtn = document.getElementById("devPersonalLootResetBtn");
+    if (resetBtn) resetBtn.addEventListener("click", () => handlePersonalLootReset());
+    const pasteEl = document.getElementById("devPersonalLootPaste");
+    if (pasteEl) {
+      pasteEl.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          void handlePersonalLootImport();
+        }
+      });
+    }
     const evSideToggle = document.getElementById("devEvSideToggle");
     if (evSideToggle) {
       evSideToggle.addEventListener("click", (e) => {
@@ -386,6 +468,8 @@
       });
     }
     bindResize(panel);
+    renderPersonalLootImportSummary({});
+    setPersonalLootStatus(devPersonalLootStatusText, devPersonalLootStatusIsError);
   }
 
 
@@ -476,14 +560,18 @@
   }
 
   function normalizeLootOverrideEntry(raw) {
-    const numeric = Number(raw);
+    const numeric = typeof raw === "number"
+      ? (Number.isFinite(raw) && raw >= 0 ? raw : NaN)
+      : (typeof raw === "string" && String(raw).trim() !== "" ? Number(raw) : NaN);
     if (Number.isFinite(numeric) && numeric >= 0) return Math.round(numeric);
     if (!raw || typeof raw !== "object") return null;
     const mode = String(raw.mode || "").trim().toLowerCase();
-    if (mode === "bid") return { mode: "Bid" };
-    if (mode === "ask") return { mode: "Ask" };
+    const price = typeof raw.price === "number"
+      ? (Number.isFinite(raw.price) ? raw.price : NaN)
+      : (typeof raw.price === "string" && String(raw.price).trim() !== "" ? Number(raw.price) : NaN);
+    if (mode === "bid") return Number.isFinite(price) && price > 0 ? { mode: "Bid", price: Math.round(price) } : { mode: "Bid" };
+    if (mode === "ask") return Number.isFinite(price) && price > 0 ? { mode: "Ask", price: Math.round(price) } : { mode: "Ask" };
     if (mode === "custom") {
-      const price = Number(raw.price);
       if (Number.isFinite(price) && price >= 0) return { mode: "Custom", price: Math.round(price) };
     }
     return null;
@@ -530,6 +618,141 @@
       mirrorBackslot: storageGetItem(ZC_STORAGE.mirrorBackslot) === "1",
       manualOverrides,
     };
+  }
+
+  function formatStamp(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    const stamp = new Date(text);
+    return Number.isFinite(stamp.getTime()) ? stamp.toLocaleString() : text;
+  }
+
+  function readPersonalLootStatusSummary() {
+    const shared = getPersonalLootImportShared();
+    if (!shared || typeof shared.getStatusSummary !== "function") return null;
+    try {
+      return shared.getStatusSummary();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function readPersonalOpenableProfile(openableHrid) {
+    if (!openableHrid) return null;
+    const shared = getPersonalLootImportShared();
+    if (!shared || typeof shared.getOpenableProfile !== "function") return null;
+    try {
+      return shared.getOpenableProfile(openableHrid);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function describePersonalCoverage(openableHrid, fallbackLabel = "") {
+    const profile = readPersonalOpenableProfile(openableHrid);
+    const label = String(profile?.chestName || fallbackLabel || fallbackItemName(openableHrid) || openableHrid || "-");
+    if (profile?.rows?.length) {
+      return `${label}: personal (${fmt(profile.opens)} opens)`;
+    }
+    return `${label}: theoretical`;
+  }
+
+  function setPersonalLootStatus(message, isError = false) {
+    devPersonalLootStatusText = String(message || "");
+    devPersonalLootStatusIsError = !!isError;
+    const el = document.getElementById("devPersonalLootStatus");
+    if (!el) return;
+    el.textContent = devPersonalLootStatusText;
+    el.classList.toggle("is-error", devPersonalLootStatusIsError);
+  }
+
+  function renderPersonalLootImportSummary(ctx = {}) {
+    const summaryEl = document.getElementById("devPersonalLootSummary");
+    if (!summaryEl) return;
+    const summary = readPersonalLootStatusSummary();
+    if (!summary) {
+      summaryEl.textContent = "Personal chest import module is not loaded.";
+      if (!devPersonalLootStatusText) setPersonalLootStatus("Personal chest import module is not loaded.", true);
+      return;
+    }
+
+    const lines = [];
+    if (!summary.active) {
+      lines.push("No personal chest loot import is active.");
+      lines.push("Paste a 360Dungeon chest export to override chest EV with observed averages.");
+      if (!devPersonalLootStatusText) setPersonalLootStatus("Paste a 360Dungeon chest export JSON, then click Import pasted JSON.");
+    } else {
+      const playerName = String(summary.playerName || "").trim();
+      const playerId = String(summary.playerId || "").trim();
+      const playerLabel = playerName || playerId || "Unknown player";
+      const showPlayerId = playerId && playerId !== playerLabel;
+      lines.push(`Active player: ${playerLabel}${showPlayerId ? ` (${playerId})` : ""}`);
+      lines.push(`Mapped chests: ${fmt(summary.chestCount)} | Tracked opens: ${fmt(summary.totalTrackedOpens)}`);
+
+      const coverage = [];
+      const shortKey = toShortDungeonKey(ctx?.dungeonKey || "");
+      const set = CHESTS[shortKey] || null;
+      if (set?.chest) coverage.push(describePersonalCoverage(set.chest, "Dungeon chest"));
+      if (set?.refined) coverage.push(describePersonalCoverage(set.refined, "Refined chest"));
+      coverage.push(describePersonalCoverage(LARGE_CHEST_HRID, "Large Treasure Chest"));
+      lines.push(`Current coverage: ${coverage.join(" | ")}`);
+
+      const importedAt = formatStamp(summary.importedAt);
+      if (importedAt) lines.push(`Imported: ${importedAt}`);
+      const exportedAt = formatStamp(summary.sourceExportedAt);
+      if (exportedAt) lines.push(`Source export: ${exportedAt}`);
+      if (summary.unmappedChestCount || summary.unmappedItemCount) {
+        lines.push(`Skipped while mapping: ${fmt(summary.unmappedChestCount)} chest names | ${fmt(summary.unmappedItemCount)} item names`);
+      }
+      if (!devPersonalLootStatusText) setPersonalLootStatus("Personal chest loot import is active.");
+    }
+
+    summaryEl.textContent = lines.join("\n");
+  }
+
+  async function handlePersonalLootImport() {
+    const shared = getPersonalLootImportShared();
+    if (!shared || typeof shared.importFromText !== "function") {
+      setPersonalLootStatus("Personal chest import module is not loaded.", true);
+      return;
+    }
+    const pasteEl = document.getElementById("devPersonalLootPaste");
+    const rawText = String(pasteEl?.value || "").trim();
+    if (!rawText) {
+      setPersonalLootStatus("Paste a 360Dungeon chest export JSON first.", true);
+      pasteEl?.focus();
+      return;
+    }
+
+    setPersonalLootStatus("Importing personal chest loot...");
+    try {
+      const stored = await shared.importFromText(rawText);
+      const summary = typeof shared.getStatusSummary === "function" ? shared.getStatusSummary(stored) : null;
+      const playerLabel = String(summary?.playerName || summary?.playerId || stored?.selectedPlayerName || stored?.selectedPlayerId || "player");
+      const chestCount = Number(summary?.chestCount ?? stored?.summary?.chestCount) || 0;
+      setPersonalLootStatus(`Imported ${fmt(chestCount)} chests for ${playerLabel}.`);
+      renderPersonalLootImportSummary({});
+      scheduleRefreshIfPanelOpen(0);
+    } catch (err) {
+      setPersonalLootStatus(err?.message || String(err), true);
+      renderPersonalLootImportSummary({});
+    }
+  }
+
+  function handlePersonalLootReset() {
+    const shared = getPersonalLootImportShared();
+    if (!shared || typeof shared.clearImport !== "function") {
+      setPersonalLootStatus("Personal chest import module is not loaded.", true);
+      return;
+    }
+    try {
+      shared.clearImport();
+      setPersonalLootStatus("Personal chest loot import cleared.");
+      renderPersonalLootImportSummary({});
+      scheduleRefreshIfPanelOpen(0);
+    } catch (err) {
+      setPersonalLootStatus(err?.message || String(err), true);
+    }
   }
 
   function extractAskBid(market, hrid) {
@@ -1150,7 +1373,8 @@
     for (const r of (ev?.breakdown || [])) {
       const chance = Number(r.chance) || 0;
       const meanQty = Number(r.meanQty) || 0;
-      const expectedQty = chance * meanQty;
+      const explicitExpectedQty = Number(r.expectedQty);
+      const expectedQty = Number.isFinite(explicitExpectedQty) ? explicitExpectedQty : (chance * meanQty);
       const key = r.hrid || r.item || "";
 
       if (!agg.has(key)) {
@@ -1280,6 +1504,7 @@
   async function refresh() {
     const errEl = document.getElementById("devError");
     resetDevError(errEl);
+    renderPersonalLootImportSummary({});
     try {
       const ctx = readDevRefreshContext();
       renderDungeonTabs(ctx);
@@ -1300,6 +1525,7 @@
         side,
         prices,
       });
+      renderPersonalLootImportSummary(ctx);
       renderApiCompare(apiCompare);
 
       const sumContrib = renderBreakdownGrid(ev);
@@ -1395,6 +1621,9 @@
     });
     document.addEventListener("dungeon:loot-overrides-changed", () => {
       scheduleRefreshIfPanelOpen(60);
+    });
+    document.addEventListener("dungeon:personal-loot-import-changed", () => {
+      scheduleRefreshIfPanelOpen(40);
     });
     ["advMode", "keysToggle", "tokenShopToggle", "zoneCompareToggle"].forEach((id) => {
       const input = document.getElementById(id);

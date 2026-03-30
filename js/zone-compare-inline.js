@@ -162,16 +162,29 @@
     return String(v == null ? "" : v).trim();
   }
 
+  function readOptionalNonNegativeNumber(raw) {
+    if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0 ? raw : null;
+    const text = asText(raw);
+    if (!text) return null;
+    const n = Number(text);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  function readOptionalPositiveNumber(raw) {
+    const n = readOptionalNonNegativeNumber(raw);
+    return n != null && n > 0 ? n : null;
+  }
+
   function normalizeLootOverrideEntry(raw) {
-    const numeric = Number(raw);
-    if (Number.isFinite(numeric) && numeric >= 0) return Math.round(numeric);
+    const numeric = readOptionalNonNegativeNumber(raw);
+    if (numeric != null) return Math.round(numeric);
     if (!raw || typeof raw !== "object") return null;
     const mode = asText(raw.mode).toLowerCase();
-    if (mode === "bid") return { mode: "Bid" };
-    if (mode === "ask") return { mode: "Ask" };
+    const price = readOptionalNonNegativeNumber(raw.price);
+    if (mode === "bid") return price != null && price > 0 ? { mode: "Bid", price: Math.round(price) } : { mode: "Bid" };
+    if (mode === "ask") return price != null && price > 0 ? { mode: "Ask", price: Math.round(price) } : { mode: "Ask" };
     if (mode === "custom") {
-      const price = Number(raw.price);
-      if (Number.isFinite(price) && price >= 0) return { mode: "Custom", price: Math.round(price) };
+      if (price != null) return { mode: "Custom", price: Math.round(price) };
     }
     return null;
   }
@@ -192,8 +205,8 @@
     const normalized = normalizeLootOverrideEntry(raw);
     if (typeof normalized === "number") return normalized;
     if (normalized && typeof normalized === "object" && asText(normalized.mode).toLowerCase() === "custom") {
-      const price = Number(normalized.price);
-      if (Number.isFinite(price) && price >= 0) return Math.round(price);
+      const price = readOptionalNonNegativeNumber(normalized.price);
+      if (price != null) return Math.round(price);
     }
     return NaN;
   }
@@ -1348,30 +1361,30 @@
       for (const item of items || []) {
         const hrid = asText(item?.hrid);
         if (!hrid || hrid === "/items/coin") continue;
-        let defaultPrice = Number(item?.defaultPrice);
+        let defaultPrice = readOptionalNonNegativeNumber(item?.defaultPrice);
         if (BACKSLOT_HRIDS.includes(hrid) && state.mirrorBackslot && Number.isFinite(mirrorPrice) && mirrorPrice >= 0) {
           defaultPrice = mirrorPrice;
         }
+        const askPrice = readOptionalPositiveNumber(item?.askPrice);
         if (!seen.has(hrid)) {
           seen.set(hrid, {
             hrid,
             name: asText(item?.name) || labelForHrid(hrid),
             iconPath: item?.iconPath || iconPathForHrid(hrid),
-            defaultPrice: Number.isFinite(defaultPrice) && defaultPrice >= 0 ? defaultPrice : null,
-            askPrice: Number.isFinite(Number(item?.askPrice)) && Number(item.askPrice) >= 0 ? Number(item.askPrice) : null,
+            defaultPrice: defaultPrice != null ? defaultPrice : null,
+            askPrice,
             sourceZones: [zone.key],
-            placeholder: Number.isFinite(defaultPrice) && defaultPrice >= 0 ? fmtCoins(defaultPrice) : "",
+            placeholder: defaultPrice != null ? fmtCoins(defaultPrice) : "",
           });
         } else {
           const existing = seen.get(hrid);
-          const hasExistingDefault = Number.isFinite(Number(existing.defaultPrice)) && Number(existing.defaultPrice) >= 0;
-          if (!hasExistingDefault && Number.isFinite(defaultPrice) && defaultPrice >= 0) {
+          const hasExistingDefault = readOptionalNonNegativeNumber(existing.defaultPrice) != null;
+          if (!hasExistingDefault && defaultPrice != null) {
             existing.defaultPrice = defaultPrice;
             existing.placeholder = fmtCoins(defaultPrice);
           }
-          const hasExistingAsk = Number.isFinite(Number(existing.askPrice)) && Number(existing.askPrice) >= 0;
-          const nextAsk = Number(item?.askPrice);
-          if (!hasExistingAsk && Number.isFinite(nextAsk) && nextAsk >= 0) existing.askPrice = nextAsk;
+          const hasExistingAsk = readOptionalPositiveNumber(existing.askPrice) != null;
+          if (!hasExistingAsk && askPrice != null) existing.askPrice = askPrice;
           if (!Array.isArray(existing.sourceZones)) existing.sourceZones = [];
           if (!existing.sourceZones.includes(zone.key)) existing.sourceZones.push(zone.key);
         }
@@ -1423,18 +1436,27 @@
       return;
     }
 
+    let normalizedAskLocks = false;
     list.innerHTML = filtered.map((r) => {
       const currentMode = getLootOverrideMode(state.manualOverrides?.[r.hrid]);
       const custom = getCustomLootOverrideValue(state.manualOverrides?.[r.hrid]);
       const hasCustom = Number.isFinite(custom);
       const isAskLocked = currentMode === "Ask";
-      const askPrice = Number.isFinite(Number(r.askPrice)) && Number(r.askPrice) >= 0 ? Number(r.askPrice) : null;
-      const askText = Number.isFinite(askPrice) ? fmtCoins(askPrice) : "";
+      const storedAskPrice = (state.manualOverrides?.[r.hrid] && typeof state.manualOverrides[r.hrid] === "object" && currentMode === "Ask")
+        ? readOptionalPositiveNumber(state.manualOverrides[r.hrid].price)
+        : null;
+      const askPrice = readOptionalPositiveNumber(r.askPrice) ?? storedAskPrice;
+      if (isAskLocked && storedAskPrice == null && askPrice != null) {
+        state.manualOverrides[r.hrid] = { mode: "Ask", price: Math.round(askPrice) };
+        normalizedAskLocks = true;
+      }
+      const askText = askPrice != null ? fmtCoins(askPrice) : "";
       const cls = isAskLocked
         ? "lootOverrideRow isAskLocked"
         : (hasCustom ? "lootOverrideRow isCustom" : "lootOverrideRow isDefault");
+      const askAttr = askPrice != null ? String(askPrice) : "";
       return `
-        <div class="${cls}" data-hrid="${escAttr(r.hrid)}">
+        <div class="${cls}" data-hrid="${escAttr(r.hrid)}" data-ask-price="${escAttr(askAttr)}">
           <div class="lootOverrideIcon">${r.iconPath ? `<img src="${escAttr(r.iconPath)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ""}</div>
           <div class="lootOverrideName" title="${escAttr(r.name)}">${escText(r.name)}</div>
           <div class="lootOverrideInputWrap">
@@ -1445,6 +1467,11 @@
         </div>
       `;
     }).join("");
+
+    if (normalizedAskLocks) {
+      persistState({ emitLootOverrides: true });
+      return;
+    }
 
     list.querySelectorAll(".lootOverrideRow").forEach((rowEl) => {
       const hrid = rowEl.getAttribute("data-hrid");
@@ -1477,8 +1504,15 @@
       if (askBtn) {
         askBtn.addEventListener("click", (e) => {
           e.preventDefault();
+          const rowAskPrice = readOptionalPositiveNumber(rowEl.getAttribute("data-ask-price"));
+          const storedAskPrice = readOptionalPositiveNumber(state.manualOverrides?.[hrid]?.price);
+          const nextAskPrice = rowAskPrice != null
+            ? rowAskPrice
+            : storedAskPrice;
           if (getLootOverrideMode(state.manualOverrides?.[hrid]) === "Ask") delete state.manualOverrides[hrid];
-          else state.manualOverrides[hrid] = { mode: "Ask" };
+          else state.manualOverrides[hrid] = nextAskPrice != null
+            ? { mode: "Ask", price: Math.round(nextAskPrice) }
+            : { mode: "Ask" };
           persistState({ emitLootOverrides: true });
           void renderManualPanel(zones, source);
         });
@@ -2256,6 +2290,16 @@
     });
     document.addEventListener("keys:import-pricing-changed", () => {
       if (toggle.checked) void refreshKeyPlannerImportActionState(readZones());
+    });
+    document.addEventListener("dungeon:personal-loot-import-changed", () => {
+      if (!toggle.checked) return;
+      const zones = readZones();
+      const api = window.DungeonAPI || null;
+      const source = String(api?.getActiveApiSource?.() || api?.getPricingModel?.() || "official");
+      void renderManualPanel(zones, source);
+      void refreshKeyPlannerImportActionState(zones);
+      const hasAnyMinutes = zones.some((zone) => TIERS.some((tier) => asText(state?.minutes?.[zone.key]?.[tier]).trim() !== ""));
+      if (hasAnyMinutes) void calculateAll(zones);
     });
     document.addEventListener("dungeon:pricing-context-changed", () => {
       if (!toggle.checked) return;
