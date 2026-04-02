@@ -31,6 +31,7 @@
   const KEY_OTHER_SOURCE_REFRESH = "dungeon.otherSourceRefresh.v1";
   const KEY_OFFICIAL_PRICES = "dungeon.officialPrices"; // per-dungeon
   const KEY_OTHER_PRICES = "dungeon.otherPrices";       // per-dungeon (mooket)
+  const KEY_FORCE_API_FAILURE_UNTIL = "dungeon.debug.forceApiFailureUntil.v1";
 
   // Pricing endpoints
   const PRICE_API = {
@@ -164,6 +165,10 @@
   const apiSourceMenu = document.getElementById("apiSourceMenu");
   const apiSourceOfficialOption = document.getElementById("apiSourceOfficialOption");
   const apiSourceOtherOption = document.getElementById("apiSourceOtherOption");
+  const apiSourceLoadState = {
+    official: { status: "idle", error: "" },
+    other: { status: "idle", error: "" },
+  };
 
   const manualEntry = document.getElementById("manualEntry");
   const manualChest = document.getElementById("manualChest");
@@ -730,6 +735,9 @@
   }
 
   function fetchApiSourceJsonCached(apiSource, fetcher) {
+    if (isApiFailureForced()) {
+      return Promise.reject(new Error(i18nT("ui.apiTestFailure", "API disabled for testing.")));
+    }
     const cached = readApiFetchCache(apiSource);
     if (cached) return Promise.resolve(cached);
     if (apiFetchInFlight[apiSource]) return apiFetchInFlight[apiSource];
@@ -845,6 +853,34 @@
 
   function getApiSourcePayloadTimestamp(source = activeApiSource) {
     return getStoredApiPayloadTimestamp(apiSourcePayloadStorageKey(source));
+  }
+
+  function getForcedApiFailureUntil() {
+    const raw = Number(storageGetItem(KEY_FORCE_API_FAILURE_UNTIL) || 0);
+    return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  }
+
+  function isApiFailureForced() {
+    const until = getForcedApiFailureUntil();
+    if (!until) return false;
+    if (Date.now() >= until) {
+      storageRemoveItem(KEY_FORCE_API_FAILURE_UNTIL);
+      return false;
+    }
+    return true;
+  }
+
+  function setForcedApiFailureForMs(durationMs) {
+    const ms = Math.max(0, Number(durationMs) || 0);
+    if (!ms) {
+      storageRemoveItem(KEY_FORCE_API_FAILURE_UNTIL);
+      updateApiSourceFooter();
+      return 0;
+    }
+    const until = Date.now() + ms;
+    storageSetItem(KEY_FORCE_API_FAILURE_UNTIL, String(until));
+    updateApiSourceFooter();
+    return until;
   }
 
   let apiSourceFooterVisibilityRaf = 0;
@@ -1033,12 +1069,50 @@
     return parseApiPayloadTimestampMs(getApiSourcePayloadTimestamp(source)) || 0;
   }
 
+  function getApiSourceSavedMap(source = activeApiSource) {
+    return sanitizeApiSource(source) === "other" ? otherSaved : officialSaved;
+  }
+
+  function hasAnySavedApiCore(savedMap) {
+    if (!savedMap || typeof savedMap !== "object") return false;
+    return Object.keys(savedMap).some((dungeonKey) => hasSavedApiCoreForDungeon(savedMap, dungeonKey));
+  }
+
+  function getApiSourceLoadMeta(source = activeApiSource) {
+    const normalized = sanitizeApiSource(source);
+    const state = apiSourceLoadState[normalized] || { status: "idle", error: "" };
+    const payloadTs = getApiSourcePayloadUpdatedTs(normalized);
+    const hasSavedData = hasAnySavedApiCore(getApiSourceSavedMap(normalized));
+    const forcedFailure = isApiFailureForced();
+    return {
+      state,
+      payloadTs,
+      hasSavedData,
+      forcedFailure,
+      showError: state.status === "error" && (forcedFailure || (!payloadTs && !hasSavedData)),
+    };
+  }
+
+  function setApiSourceLoadState(source, nextState = {}) {
+    const normalized = sanitizeApiSource(source);
+    const current = apiSourceLoadState[normalized] || { status: "idle", error: "" };
+    apiSourceLoadState[normalized] = {
+      ...current,
+      ...nextState,
+      error: String(nextState.error ?? current.error ?? "").trim(),
+    };
+    updateApiSourceFooter();
+  }
+
   function getApiSourceFreshnessLabel(source = activeApiSource) {
+    const loadMeta = getApiSourceLoadMeta(source);
+    if (loadMeta.showError) return i18nT("ui.apiLoadErrorShort", "Load failed");
     const ts = getApiSourcePayloadUpdatedTs(source);
     return ts ? formatAge(Date.now() - ts) : "—";
   }
 
   function getApiSourceFreshnessTone(source = activeApiSource) {
+    if (getApiSourceLoadMeta(source).showError) return "is-error";
     const ts = getApiSourcePayloadUpdatedTs(source);
     if (!ts) return "";
     const ageMs = Math.max(0, Date.now() - ts);
@@ -1052,12 +1126,14 @@
     const label = apiSourceLabel(source);
     const age = getApiSourceFreshnessLabel(source);
     const ageTone = getApiSourceFreshnessTone(source);
+    const loadMeta = getApiSourceLoadMeta(source);
     btn.innerHTML = `
       <span class="apiSourceOptionLabel">${escapeHtml(label)}</span>
       <span class="apiSourceOptionAge${ageTone ? ` ${ageTone}` : ""}">${escapeHtml(age)}</span>
     `;
-    const freshnessTs = getApiSourcePayloadUpdatedTs(source);
-    const title = freshnessTs
+    const title = loadMeta.showError
+      ? i18nF("ui.apiLoadErrorTitle", "{source} API failed to load.", { source: label })
+      : loadMeta.payloadTs
       ? i18nF("ui.apiDataUpdatedTitle", "{source} API • Data updated: {age}", { source: label, age })
       : i18nF("ui.apiDataUpdatedTitle", "{source} API • Data updated: {age}", { source: label, age: "—" });
     btn.setAttribute("title", title);
@@ -1086,17 +1162,37 @@
   }
 
   function updateApiSourceFooter() {
+    const loadMeta = getApiSourceLoadMeta(activeApiSource);
     if (apiSourceTag) apiSourceTag.hidden = false;
+    if (apiSourceTag) apiSourceTag.classList.toggle("is-error", loadMeta.showError);
+    if (apiSourceCurrentBtn) apiSourceCurrentBtn.classList.toggle("is-error", loadMeta.showError);
     if (apiSourceCurrentBtn) {
-      apiSourceCurrentBtn.setAttribute("aria-label", i18nF("ui.activeApiPicker", "Active API: {source}. Click to change.", { source: apiSourceLabel(activeApiSource) }));
-      apiSourceCurrentBtn.setAttribute("title", i18nT("ui.changeApiSource", "Change API source"));
+      const label = apiSourceLabel(activeApiSource);
+      apiSourceCurrentBtn.setAttribute(
+        "aria-label",
+        loadMeta.showError
+          ? i18nF("ui.apiLoadErrorPicker", "Active API: {source}. Load failed. Click to change.", { source: label })
+          : i18nF("ui.activeApiPicker", "Active API: {source}. Click to change.", { source: label })
+      );
+      apiSourceCurrentBtn.setAttribute(
+        "title",
+        loadMeta.showError
+          ? i18nF("ui.apiLoadErrorTitle", "{source} API failed to load.", { source: label })
+          : i18nT("ui.changeApiSource", "Change API source")
+      );
     }
     if (apiSourceActiveLabel) apiSourceActiveLabel.textContent = apiSourceLabel(activeApiSource);
     if (apiSourceActiveValue) {
       const payloadRaw = getApiSourcePayloadTimestamp(activeApiSource);
-      const payloadTs = getApiSourcePayloadUpdatedTs(activeApiSource);
-      apiSourceActiveValue.textContent = formatApiPayloadTimestamp(payloadRaw);
-      apiSourceActiveValue.setAttribute("title", payloadTs ? getApiSourceFreshnessLabel(activeApiSource) : "—");
+      apiSourceActiveValue.textContent = loadMeta.showError
+        ? i18nT("ui.apiLoadErrorShort", "Load failed")
+        : formatApiPayloadTimestamp(payloadRaw);
+      apiSourceActiveValue.setAttribute(
+        "title",
+        loadMeta.showError
+          ? (loadMeta.state.error || i18nF("ui.apiLoadErrorTitle", "{source} API failed to load.", { source: apiSourceLabel(activeApiSource) }))
+          : (loadMeta.payloadTs ? getApiSourceFreshnessLabel(activeApiSource) : "—")
+      );
     }
     if (apiSourceOfficialOption) {
       setApiSourceOptionContent(apiSourceOfficialOption, "official");
@@ -2869,6 +2965,7 @@
     const { silent = false } = opts || {};
     const refreshReason = String(opts?.reason || "").trim().toLowerCase();
     const isPickerRefresh = refreshReason === "api-picker";
+    const stateSource = sanitizeApiSource(cfg.sourceKey || normalizeApiSourceFromLabel(cfg.sourceLabel));
 
     const refreshShared = getPricingRefreshShared();
     let hrids = null;
@@ -2883,6 +2980,7 @@
     }
 
     try {
+      setApiSourceLoadState(stateSource, { status: "loading", error: "" });
       const now = Date.now();
       const { json, usedProxy } = await cfg.fetchJson();
       const sourceTimestamp = normalizeApiPayloadTimestamp(json?.timestamp);
@@ -2946,6 +3044,7 @@
       }
       if (!silent) showToast(cfg.successToast(usedProxy));
       if (!isPickerRefresh) applyPostPriceRefreshUpdates(dungeonKey);
+      setApiSourceLoadState(stateSource, { status: "ready", error: "" });
       return { ok: true, fetchedAt: now, usedProxy };
     } catch (err) {
       console.error(cfg.errorPrefix, err);
@@ -2956,6 +3055,10 @@
         : cfg.errorToast;
       if (!silent && errorToast) showToast(errorToast);
       cfg.onError?.(err, { dungeonKey, hasSavedData });
+      setApiSourceLoadState(stateSource, {
+        status: "error",
+        error: err?.message || i18nT("ui.apiRefreshFailed", "Couldn't refresh prices right now."),
+      });
       return { ok: false, error: err?.message || i18nT("ui.apiRefreshFailed", "Couldn't refresh prices right now.") };
     }
   }
@@ -3026,6 +3129,7 @@
 
   function buildOfficialRefreshConfig() {
     return {
+      sourceKey: "official",
       sourceLabel: "official",
       fetchJson: () => fetchOfficialMarketplaceJson(),
       selectMarketData: (json) => json?.marketData || null,
@@ -3044,6 +3148,7 @@
 
   function buildOtherRefreshConfig() {
     return {
+      sourceKey: "other",
       sourceLabel: "mooket",
       fetchJson: () => fetchMooketJson(),
       selectMarketData: (json) => json?.marketData ?? json,
@@ -3185,6 +3290,16 @@
   document.addEventListener("site:lang-changed", () => {
     window.requestAnimationFrame(() => refreshVisibleUiForLanguage());
   });
+  window.DungeonDebug = {
+    ...(window.DungeonDebug || {}),
+    forceApiFailureForMinutes(minutes = 5) {
+      return setForcedApiFailureForMs(Math.max(0, Number(minutes) || 0) * 60 * 1000);
+    },
+    clearForcedApiFailure() {
+      setForcedApiFailureForMs(0);
+    },
+    isApiFailureForced,
+  };
 
   // ===== Dungeon selection =====
   function clearClearTimeOnSelectionChange(fromUser, prevValue, nextValue) {
