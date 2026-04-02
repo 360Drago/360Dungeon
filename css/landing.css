@@ -1813,6 +1813,21 @@ body.stage-tier .options {
   font: inherit;
 }
 
+.apiSourceCurrent.is-error {
+  padding: 8px 11px;
+  border: 1px solid rgba(248, 113, 113, 0.62);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(127, 29, 29, 0.92), rgba(69, 10, 10, 0.92));
+  color: #fca5a5;
+  opacity: 0.96;
+  box-shadow:
+    0 0 0 1px rgba(248, 113, 113, 0.12) inset,
+    0 10px 24px rgba(127, 29, 29, 0.34),
+    0 0 18px rgba(248, 113, 113, 0.22);
+  transform: translateY(-1px);
+}
+
 .apiSourceCurrent:hover {
   opacity: 0.92;
 }
@@ -1830,6 +1845,14 @@ body.stage-tier .options {
   color: color-mix(in srgb, var(--text) 88%, white);
   letter-spacing: 0.04em;
   opacity: 0.92;
+}
+
+.apiSourceCurrent.is-error .apiSourceValue {
+  color: #fecaca;
+}
+
+.apiSourceCurrent.is-error .apiSourceName {
+  color: #ffe4e6;
 }
 
 .apiSourceMenu {
@@ -1892,6 +1915,11 @@ body.stage-tier .options {
 
 .apiSourceOptionAge.is-stale {
   color: #f87171;
+  text-shadow: 0 0 10px rgba(248, 113, 113, 0.14);
+}
+
+.apiSourceOptionAge.is-error {
+  color: #fca5a5;
   text-shadow: 0 0 10px rgba(248, 113, 113, 0.14);
 }
 
@@ -2268,6 +2296,25 @@ html[data-theme="light"] .apiSourceValue {
   color: rgba(31, 41, 55, 0.9);
 }
 
+html[data-theme="light"] .apiSourceCurrent.is-error {
+  border-color: rgba(220, 38, 38, 0.34);
+  background:
+    linear-gradient(180deg, rgba(254, 226, 226, 0.98), rgba(254, 242, 242, 0.96));
+  color: #b91c1c;
+  box-shadow:
+    0 0 0 1px rgba(220, 38, 38, 0.08) inset,
+    0 10px 20px rgba(248, 113, 113, 0.16),
+    0 0 14px rgba(248, 113, 113, 0.14);
+}
+
+html[data-theme="light"] .apiSourceCurrent.is-error .apiSourceValue {
+  color: #991b1b;
+}
+
+html[data-theme="light"] .apiSourceCurrent.is-error .apiSourceName {
+  color: #7f1d1d;
+}
+
 html[data-theme="light"] .apiSourceMenu {
   background: rgba(255, 255, 255, 0.96);
   border-color: rgba(148, 163, 184, 0.24);
@@ -2293,6 +2340,11 @@ html[data-theme="light"] .apiSourceOptionAge.is-aging {
 }
 
 html[data-theme="light"] .apiSourceOptionAge.is-stale {
+  color: #b91c1c;
+  text-shadow: none;
+}
+
+html[data-theme="light"] .apiSourceOptionAge.is-error {
   color: #b91c1c;
   text-shadow: none;
 }
