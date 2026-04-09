@@ -3228,9 +3228,93 @@ body.advanced-mode .panel[data-panel="run"] .runSimActions {
   justify-content: flex-end;
 }
 
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollField {
+  min-width: 0;
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 40px;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--neutral-border);
+  background: var(--surface-input);
+  padding: 0 12px;
+  cursor: text;
+  overflow: hidden;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease, opacity 160ms ease;
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox:hover {
+  border-color: var(--neutral-border-strong);
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox:focus-within {
+  border-color: var(--neutral-border-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox.is-empty {
+  background: color-mix(in srgb, var(--surface-input) 82%, rgba(255, 255, 255, 0.04));
+  opacity: 0.84;
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox.is-empty .combatDropScrollIcon {
+  opacity: 0.42;
+  filter: saturate(0.18);
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollIcon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  opacity: 0.88;
+  flex: 0 0 auto;
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox .combatDropScrollCountInput,
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox .combatDropScrollCountInput[type="text"] {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  color: var(--title-color);
+  font-weight: 700;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox .combatDropScrollCountInput::placeholder {
+  color: var(--muted-color);
+  opacity: 1;
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollPlan {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted-color);
+}
+
+body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox .combatDropScrollCountInput:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+
 @media (min-width: 760px) {
   body.advanced-mode .panel[data-panel="run"] .fieldGrid {
-    grid-template-columns: 0.95fr 0.525fr 0.525fr;
+    grid-template-columns: minmax(0, 1fr) minmax(148px, 0.62fr) minmax(148px, 0.62fr) minmax(148px, 0.62fr);
     align-items: start;
   }
 
@@ -3245,6 +3329,16 @@ body.advanced-mode .panel[data-panel="run"] .runSimActions {
   body.advanced-mode .panel[data-panel="run"] .rangeInput {
     height: 40px;
   }
+}
+
+@media (max-width: 759px) {
+  body.advanced-mode .panel[data-panel="run"] .combatDropScrollCountInput {
+    text-align: left;
+  }
+}
+
+html[data-theme="light"] body.advanced-mode .panel[data-panel="run"] .combatDropScrollBox.is-empty {
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .simpleCard {
