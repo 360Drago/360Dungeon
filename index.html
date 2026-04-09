@@ -621,6 +621,19 @@
                 <div class="fieldHint muted small">Required to calculate.</div>
                 <div class="fieldError" id="playerBuffErr">Enter a number from 0 to 20.</div>
               </div>
+              <div class="field combatDropScrollField">
+                <div class="fieldLabelRow">
+                  <div class="simpleLabelWrap">
+                    <label for="combatDropScrollCount">Combat drop scrolls</label>
+                    <span class="tipHost simpleTip tipSingleLine" data-tip="Adds +15% drop quantity for 30m. Additive with Combat buff." tabindex="0" role="button" aria-label="Combat drop scroll help">?</span>
+                  </div>
+                </div>
+                <div class="combatDropScrollBox is-empty" id="combatDropScrollBox">
+                  <img id="combatDropScrollIcon" class="combatDropScrollIcon" src="./assets/Svg/Combat_drop_scroll.svg" alt="" loading="lazy" onerror="this.style.display='none'" />
+                  <input id="combatDropScrollCount" class="combatDropScrollCountInput" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" value="" placeholder="None" aria-label="Combat drop scroll count" />
+                </div>
+                <div class="combatDropScrollPlan muted small" id="combatDropScrollPlan" hidden></div>
+              </div>
               <div class="field">
                 <div class="fieldLabelRow">
                   <label for="advFoodPerDay">Consumables Per Day</label>
