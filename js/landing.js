@@ -225,6 +225,9 @@
   const advResultsSub = document.getElementById("advResultsSub");
   const advToggleRange = document.getElementById("advToggleRange");
   const advFoodPerDay = document.getElementById("advFoodPerDay");
+  const combatDropScrollBox = document.getElementById("combatDropScrollBox");
+  const combatDropScrollCountInput = document.getElementById("combatDropScrollCount");
+  const combatDropScrollPlan = document.getElementById("combatDropScrollPlan");
 
 
   // Manual loot price overrides (advanced-only)
@@ -2002,6 +2005,26 @@
     return { clearTime: clearRaw, buff: buffRaw };
   }
 
+  function normalizeCombatDropScrollSaved(raw) {
+    const normalize = getPlayerInputShared()?.normalizeCombatDropScrollState;
+    if (typeof normalize === "function") return normalize(raw);
+    return { enabled: false, count: 1 };
+  }
+
+  function buildLegacyRunInputsPayload(runRaw = runSaved, scrollRaw = sharedCombatDropScroll) {
+    const nextRun = normalizeRunSaved(runRaw);
+    const nextScroll = normalizeCombatDropScrollSaved({
+      combatDropScrollEnabled: scrollRaw?.enabled,
+      combatDropScrollCount: scrollRaw?.count,
+    });
+    return {
+      clearTime: nextRun.clearTime,
+      buff: nextRun.buff,
+      combatDropScrollEnabled: nextScroll.enabled ? "1" : "0",
+      combatDropScrollCount: String(nextScroll.count),
+    };
+  }
+
   function loadSharedZoneMinutesMap() {
     const obj = storageGetJson(KEY_ZONE_COMPARE_MINUTES, {});
     return (obj && typeof obj === "object") ? obj : {};
@@ -2025,7 +2048,9 @@
     storageSetJson(KEY_ZONE_COMPARE_MINUTES, all);
   }
 
-  const LEGACY_RUN_INPUT_DEFAULT = normalizeRunSaved(storageGetJson(KEY_RUN_INPUTS, { clearTime: "", buff: "20" }));
+  const LEGACY_RUN_INPUT_RAW = storageGetJson(KEY_RUN_INPUTS, { clearTime: "", buff: "20" });
+  const LEGACY_RUN_INPUT_DEFAULT = normalizeRunSaved(LEGACY_RUN_INPUT_RAW);
+  let sharedCombatDropScroll = normalizeCombatDropScrollSaved(LEGACY_RUN_INPUT_RAW);
   const LEGACY_FOOD_PER_DAY_DEFAULT = normalizeFoodPerDayInput(storageGetItem(KEY_FOOD_PER_DAY) || "") || DEFAULT_FOOD_PER_DAY;
 
   function getRunSavedForCurrentContext(fallback = LEGACY_RUN_INPUT_DEFAULT) {
@@ -2048,6 +2073,7 @@
     const nextRun = getRunSavedForCurrentContext();
     nextRun.clearTime = getSharedClearTimeForContext(selectedDungeon, selectedTier);
     runSaved = nextRun;
+    sharedCombatDropScroll = normalizeCombatDropScrollSaved(storageGetJson(KEY_RUN_INPUTS, LEGACY_RUN_INPUT_RAW));
     if (clearTime) clearTime.value = String(nextRun.clearTime || "");
     if (playerBuff) playerBuff.value = String(nextRun.buff || "20");
     if (simpleClearTime) simpleClearTime.value = String(nextRun.clearTime || "");
@@ -2055,6 +2081,7 @@
     if (simpleBuffCustom) {
       setRangeValueAndRefresh(simpleBuffCustom, simpleBuffValue, String(nextRun.buff || "20"));
     }
+    updateCombatDropScrollUiState();
 
     const nextFood = normalizeFoodPerDayInput(
       storageGetItem(KEY_ZONE_COMPARE_FOOD) || storageGetItem(KEY_FOOD_PER_DAY) || ""
@@ -2660,7 +2687,7 @@
     if (playerBuffErr) playerBuffErr.classList.toggle("show", buffRaw !== "" && !buffOk);
 
     runSaved = { clearTime: ctRaw, buff: buffRaw };
-    storageSetJson(KEY_RUN_INPUTS, runSaved);
+    storageSetJson(KEY_RUN_INPUTS, buildLegacyRunInputsPayload(runSaved, sharedCombatDropScroll));
     setSharedClearTimeForContext(ctRaw);
     const key = runContextKey();
     if (key) {
@@ -2737,6 +2764,102 @@
     const clamp = getPlayerInputShared()?.clampCombatBuff;
     if (typeof clamp === "function") return clamp(raw);
     return { ok: false, num: 20 };
+  }
+
+  function clampCombatDropScrollCount(raw) {
+    const clamp = getPlayerInputShared()?.clampCombatDropScrollCount;
+    if (typeof clamp === "function") return clamp(raw);
+    return { ok: false, num: 1 };
+  }
+
+  function normalizeCombatDropScrollDraft(raw) {
+    const digits = String(raw == null ? "" : raw).replace(/[^\d]/g, "");
+    if (!digits) return { enabled: false, count: 1, raw: "" };
+    const numeric = Number(digits);
+    if (!Number.isFinite(numeric) || numeric <= 0) return { enabled: false, count: 1, raw: "" };
+    const count = clampCombatDropScrollCount(digits).num;
+    return { enabled: true, count, raw: digits };
+  }
+
+  function formatScrollMinutes(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "-";
+    const rounded = Math.round(n * 10) / 10;
+    return Number.isInteger(rounded) ? String(Math.round(rounded)) : rounded.toFixed(1).replace(/\.0$/, "");
+  }
+
+  function getAdvancedCombatDropScrollNote() {
+    if (!sharedCombatDropScroll?.enabled) {
+      return "";
+    }
+
+    const scrollCount = Math.max(1, Number(sharedCombatDropScroll?.count) || 1);
+    const clearParsed = parsePositiveMinutesValue(clearTime?.value || runSaved?.clearTime || "");
+    if (!clearParsed.ok) {
+      return "";
+    }
+
+    const plan = Calc?.computeCombatDropScrollPlan?.({
+      clearMinutes: clearParsed.num,
+      scrollCount,
+    }) || null;
+    if (!plan || !plan.coveredChestCount) {
+      return "";
+    }
+
+    return i18nF(
+      "ui.combatDropScrollHintReadyShort",
+      "Start {minutes} min into run 1. Covers {count} chest drops.",
+      {
+        minutes: formatScrollMinutes(plan.startOffsetMinutes),
+        count: String(plan.coveredChestCount),
+      }
+    );
+  }
+
+  function updateCombatDropScrollUiState() {
+    const enabled = !!sharedCombatDropScroll?.enabled;
+    const count = Math.max(1, Number(sharedCombatDropScroll?.count) || 1);
+
+    if (combatDropScrollCountInput) {
+      const nextValue = enabled ? String(count) : "";
+      if (combatDropScrollCountInput.value !== nextValue) combatDropScrollCountInput.value = nextValue;
+    }
+
+    if (combatDropScrollBox) combatDropScrollBox.classList.toggle("is-empty", !enabled);
+
+    if (combatDropScrollPlan) {
+      const note = getAdvancedCombatDropScrollNote();
+      combatDropScrollPlan.textContent = note;
+      combatDropScrollPlan.hidden = !note;
+    }
+  }
+
+  function dispatchCombatDropScrollChanged(source) {
+    try {
+      document.dispatchEvent(new CustomEvent("dungeon:combat-drop-scroll-changed", {
+        detail: {
+          enabled: !!sharedCombatDropScroll?.enabled,
+          count: Math.max(1, Number(sharedCombatDropScroll?.count) || 1),
+          source: String(source || "landing"),
+        },
+      }));
+    } catch (_) { }
+  }
+
+  function setCombatDropScrollState(next = {}, opts = {}) {
+    const merged = normalizeCombatDropScrollSaved({
+      combatDropScrollEnabled: next.enabled ?? sharedCombatDropScroll?.enabled,
+      combatDropScrollCount: next.count ?? sharedCombatDropScroll?.count,
+    });
+    sharedCombatDropScroll = merged;
+    storageSetJson(KEY_RUN_INPUTS, buildLegacyRunInputsPayload(runSaved, merged));
+    updateAllSummaries();
+    if (opts.emit !== false) dispatchCombatDropScrollChanged(opts.source || "landing");
+  }
+
+  function getAdvancedCombatDropScrollCount() {
+    return sharedCombatDropScroll?.enabled ? Math.max(1, Number(sharedCombatDropScroll?.count) || 1) : 0;
   }
 
   function updateRangeUI(rangeEl, valueEl) {
@@ -2823,6 +2946,44 @@
       savePlayerInputsAndSummaries();
     });
   }
+
+  if (combatDropScrollCountInput) {
+    if (combatDropScrollBox) {
+      combatDropScrollBox.addEventListener("click", () => {
+        combatDropScrollCountInput.focus();
+      });
+    }
+    combatDropScrollCountInput.addEventListener("focus", () => {
+      combatDropScrollCountInput.select?.();
+    });
+    combatDropScrollCountInput.addEventListener("input", () => {
+      const draft = normalizeCombatDropScrollDraft(combatDropScrollCountInput.value || "");
+      sharedCombatDropScroll = normalizeCombatDropScrollSaved({
+        combatDropScrollEnabled: draft.enabled,
+        combatDropScrollCount: draft.count,
+      });
+      combatDropScrollCountInput.value = draft.enabled ? String(draft.count) : "";
+      storageSetJson(KEY_RUN_INPUTS, buildLegacyRunInputsPayload(runSaved, sharedCombatDropScroll));
+      updateAllSummaries();
+    });
+    const commitCombatDropScrollCount = () => {
+      const draft = normalizeCombatDropScrollDraft(combatDropScrollCountInput.value || "");
+      combatDropScrollCountInput.value = draft.enabled ? String(draft.count) : "";
+      setCombatDropScrollState({ enabled: draft.enabled, count: draft.count }, { source: "landing" });
+    };
+    combatDropScrollCountInput.addEventListener("change", commitCombatDropScrollCount);
+    combatDropScrollCountInput.addEventListener("blur", commitCombatDropScrollCount);
+  }
+
+  document.addEventListener("dungeon:combat-drop-scroll-changed", (event) => {
+    const detail = event?.detail || {};
+    if (String(detail.source || "") === "landing") return;
+    sharedCombatDropScroll = normalizeCombatDropScrollSaved({
+      combatDropScrollEnabled: detail.enabled,
+      combatDropScrollCount: detail.count,
+    });
+    updateAllSummaries();
+  });
 
   // Simple mode listeners (keep the underlying run inputs in sync)
 
@@ -3556,9 +3717,12 @@
     const buffRaw = parsed?.buffRaw;
     const ctOk = !!parsed?.ctOk;
     const buffOk = !!parsed?.buffOk;
+    const scrollEnabled = !!sharedCombatDropScroll?.enabled;
+    const scrollCount = Math.max(1, Number(sharedCombatDropScroll?.count) || 1);
     return {
       runClear: ctRaw ? i18nF("ui.runClearFmt", "{value} min", { value: ctRaw }) : "-",
       runBuff: buffRaw ? i18nF("ui.runBuffFmt", "{value}/20", { value: buffRaw }) : "-",
+      runScroll: scrollEnabled ? i18nF("ui.runScrollFmt", "Scrolls: {count}", { count: String(scrollCount) }) : "",
       runPill: (ctOk && buffOk) ? i18nT("ui.set", "Set") : i18nT("ui.needed", "Needed"),
       statusClear: ctRaw ? i18nF("ui.statusClearFmt", "{value}m", { value: ctRaw }) : "-",
       statusBuff: buffRaw ? `${buffRaw}` : "-",
@@ -3567,10 +3731,12 @@
 
   function updateRunHeaderLine() {
     const texts = playerStatusTexts(getPlayerParsed());
-    runSummaryLine.textContent = i18nF("ui.runSummary", "Clear time: {clear} - Buff: {buff}", {
-      clear: texts.runClear,
-      buff: texts.runBuff,
-    });
+    const summaryParts = [
+      i18nF("ui.runSummaryClearOnly", "Clear time: {clear}", { clear: texts.runClear }),
+      i18nF("ui.runSummaryBuffOnly", "Buff: {buff}", { buff: texts.runBuff }),
+    ];
+    if (texts.runScroll) summaryParts.push(texts.runScroll);
+    runSummaryLine.textContent = summaryParts.join(" • ");
     runPill.textContent = texts.runPill;
 
   }
@@ -3983,6 +4149,7 @@
   function updateAllSummaries() {
     updatePricingHeaderLine();
     updateRunHeaderLine();
+    updateCombatDropScrollUiState();
     updateStatusStack();
     updateSelectionSummary();
     updateQuickStartHint();
@@ -4760,11 +4927,13 @@ async function renderAdvancedResults() {
       const playerParsed = getPlayerParsedForSimulation();
 
       const buffTier = Number.isFinite(playerParsed.buffNum) ? playerParsed.buffNum : 0;
+      const combatDropScrollCount = source === "advanced" ? getAdvancedCombatDropScrollCount() : 0;
 
       const sim = Calc.computeLootCountsFor24h({
         clearMinutes: playerParsed.ctNum,
         buffTier,
         tierKey: selectedTier,
+        combatDropScrollCount,
       });
 
       applySimulationLootResult(selectedDungeon, sim);
@@ -4832,6 +5001,7 @@ async function renderAdvancedResults() {
 
   bindEnterToActiveCalculate(clearTime);
   bindEnterToActiveCalculate(playerBuff);
+  bindEnterToActiveCalculate(combatDropScrollCountInput);
   bindEnterToActiveCalculate(simpleClearTime);
   bindEnterToActiveCalculate(simpleBuffCustom);
   bindEnterToActiveCalculate(document.getElementById("foodPerDay"));

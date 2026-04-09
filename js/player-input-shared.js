@@ -3,6 +3,7 @@
   "use strict";
   // Ownership: shared clear-time/combat-buff parsing helpers for landing and related runtime modules.
   // Invariant: keep validation bounds stable (clear time > 0, buff range 0..20).
+  const COMBAT_DROP_SCROLLS_PER_DAY_MAX = 48;
 
   function parseClearAndBuff(clearRaw, buffRaw) {
     const ctRaw = String(clearRaw == null ? "" : clearRaw).trim();
@@ -31,10 +32,42 @@
     return { ok, num: ok ? num : 20 };
   }
 
+  function normalizeCombatDropScrollEnabled(raw) {
+    if (raw === true) return true;
+    if (raw === false) return false;
+    const text = String(raw == null ? "" : raw).trim().toLowerCase();
+    return text === "1" || text === "true" || text === "on";
+  }
+
+  function clampCombatDropScrollCount(raw) {
+    const text = String(raw == null ? "" : raw).trim();
+    const num = text === "" ? NaN : Number(text);
+    const ok = Number.isFinite(num) && num >= 1 && num <= COMBAT_DROP_SCROLLS_PER_DAY_MAX;
+    return {
+      ok,
+      num: ok ? Math.floor(num) : 1,
+    };
+  }
+
+  function normalizeCombatDropScrollState(raw) {
+    const obj = (raw && typeof raw === "object") ? raw : {};
+    const enabled = normalizeCombatDropScrollEnabled(
+      obj.combatDropScrollEnabled ?? obj.scrollEnabled ?? obj.dropScrollEnabled
+    );
+    const count = clampCombatDropScrollCount(
+      obj.combatDropScrollCount ?? obj.scrollCount ?? obj.dropScrollCount
+    ).num;
+    return { enabled, count };
+  }
+
   window.DungeonPlayerInputShared = {
     parseClearAndBuff,
     parsePositiveMinutes,
     clampCombatBuff,
+    normalizeCombatDropScrollEnabled,
+    clampCombatDropScrollCount,
+    normalizeCombatDropScrollState,
+    COMBAT_DROP_SCROLLS_PER_DAY_MAX,
   };
 })();
 

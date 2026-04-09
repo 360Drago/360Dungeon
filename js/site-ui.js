@@ -51,10 +51,12 @@
         "#advFoodPerDay",
         "#simpleClearTime",
         "#clearTime",
+        "#combatDropScrollCount",
         "#lootOverrideSection input",
         "#lootOverrideSection button",
         "#zoneCompareInline #zcBuff",
         "#zoneCompareInline #zcFood",
+        "#zoneCompareInline #zcScrollCount",
         "#zoneCompareInline input[id^=\"zcMin-\"]",
         "#zoneCompareInline #zcLowDrop",
         "#zoneCompareInline #zcMirrorBackslot",
@@ -270,9 +272,23 @@
             "ui.refreshOfficialApiPrices": "Refresh current API prices",
             "ui.combatBuff": "Combat buff",
             "ui.combatBuffHelp": "Current Combat Drop Quantity (Found in Game)",
+            "ui.combatDropScrolls": "Combat drop scrolls",
+            "ui.combatDropScrollCount": "Combat drop scroll count",
+            "ui.combatDropScrollHelpShort": "Adds +15% drop quantity for 30m. Additive with Combat buff.",
             "ui.enterNumber0to20": "Enter a number from 0 to 20.",
             "ui.consumablesPerDay": "Consumables Per Day",
             "ui.consumablesHelp": "Default 10m per day",
+            "ui.none": "None",
+            "ui.clearImport": "Clear import",
+            "ui.importPastedJson": "Import pasted JSON",
+            "ui.loading": "Loading...",
+            "ui.personalChestLootImport": "Personal chest loot import",
+            "ui.personalLootBannerActive": "Warning: personal chest loot is active for {player}. Chest EV uses your observed averages where imported coverage exists. Imported chest records: {chests}. Tracked opens: {opens}.",
+            "ui.personalLootClearedToast": "Personal chest loot import cleared.",
+            "ui.personalLootImportedToast": "Using personal chest loot for {player}.",
+            "ui.personalLootPasteLabel": "Paste personal chest loot export JSON",
+            "ui.personalLootPastePlaceholder": "Paste the 360Dungeon chest export JSON here, then click Import pasted JSON.",
+            "ui.personalLootSelectedPlayer": "selected player",
             "ui.clearTimeMinutes": "Clear time (minutes)",
             "ui.clearTimePlaceholder": "e.g. 22",
             "ui.enterValidMinutes": "Enter a valid number of minutes.",
@@ -375,6 +391,9 @@
             "ui.runSummary": "Clear time: {clear} - Buff: {buff}",
             "ui.runClearFmt": "{value} min",
             "ui.runBuffFmt": "{value}/20",
+            "ui.runScrollFmt": "Scrolls: {count}",
+            "ui.runSummaryClearOnly": "Clear time: {clear}",
+            "ui.runSummaryBuffOnly": "Buff: {buff}",
             "ui.statusClearFmt": "{value}m",
             "ui.selectionSummary": "Dungeon: {dungeon} - Tier: {tier} - Pricing: {pricing}",
             "ui.rangeSub": "Range: low uses loot @ bid + keys @ ask; high uses loot @ ask + keys @ bid.",
@@ -458,6 +477,8 @@
             "ui.refined": "Refined",
             "ui.dailyProfit": "Daily Profit",
             "ui.combatBuffTitle": "Combat Buff",
+            "ui.combatDropScrollHintReadyShort": "Start {minutes} min into run 1. Covers {count} chest drops.",
+            "ui.combatDropScrollHintCompareReady": "{count} scrolls ready. Each tier tooltip shows the best first activation timing.",
             "ui.consumablesDay": "Consumables / day",
             "ui.putNumberHere": "Put your number in here",
             "ui.removeOnePercentDrops": "Remove 1% drops",
@@ -501,6 +522,10 @@
             "ui.moreCount": " +{count} more",
             "ui.tipRunsEntryChestKeys": "Runs/day: {runs} | Entry: {entry} | Chest keys: {chestKeys}",
             "ui.tipChestsRefined": "Chests: {chests} | Refined: {refined}",
+            "ui.tipCombatDropScrollStart": "Best time to start: {minutes} min into run 1",
+            "ui.tipCombatDropScrollCovered": "Total number of buffed runs: {count}",
+            "ui.tipCombatDropScrollBonusChest": "Extra expected chests: {value}",
+            "ui.tipCombatDropScrollBonusRefined": "Extra expected refined: {value}",
             "ui.tipDailyRegularTotal": "Normal total/day: {range}",
             "ui.tipDailyRefinedTotal": "Refined total/day: {range}",
             "ui.tipDailyChestTotal": "Chest total/day: {range}",
@@ -699,9 +724,23 @@
             "ui.refreshOfficialApiPrices": "刷新当前 API 价格",
             "ui.combatBuff": "战斗增益",
             "ui.combatBuffHelp": "当前战斗掉落数量（游戏内）",
+            "ui.combatDropScrolls": "战斗掉落卷轴",
+            "ui.combatDropScrollCount": "战斗掉落卷轴数量",
+            "ui.combatDropScrollHelpShort": "30 分钟内掉落数量 +15%，与战斗增益叠加。",
             "ui.enterNumber0to20": "请输入 0 到 20 的数字。",
             "ui.consumablesPerDay": "每日消耗品",
             "ui.consumablesHelp": "默认每日 10m",
+            "ui.none": "无",
+            "ui.clearImport": "清除导入",
+            "ui.importPastedJson": "导入粘贴的 JSON",
+            "ui.loading": "加载中...",
+            "ui.personalChestLootImport": "个人宝箱掉落导入",
+            "ui.personalLootBannerActive": "警告：{player} 的个人宝箱掉落已启用。有导入覆盖时，宝箱 EV 会使用你观察到的平均值。已导入宝箱记录：{chests}。已跟踪开启次数：{opens}。",
+            "ui.personalLootClearedToast": "个人宝箱掉落导入已清除。",
+            "ui.personalLootImportedToast": "正在使用 {player} 的个人宝箱掉落。",
+            "ui.personalLootPasteLabel": "粘贴个人宝箱掉落导出 JSON",
+            "ui.personalLootPastePlaceholder": "在此粘贴 360Dungeon 宝箱导出 JSON，然后点击“导入粘贴的 JSON”。",
+            "ui.personalLootSelectedPlayer": "所选玩家",
             "ui.clearTimeMinutes": "通关时间（分钟）",
             "ui.clearTimePlaceholder": "例如 22",
             "ui.enterValidMinutes": "请输入有效的分钟数。",
@@ -791,6 +830,9 @@
             "ui.runSummary": "通关时间：{clear} - 增益：{buff}",
             "ui.runClearFmt": "{value} 分钟",
             "ui.runBuffFmt": "{value}/20",
+            "ui.runScrollFmt": "卷轴：{count}",
+            "ui.runSummaryClearOnly": "通关时间：{clear}",
+            "ui.runSummaryBuffOnly": "增益：{buff}",
             "ui.statusClearFmt": "{value}m",
             "ui.selectionSummary": "地下城：{dungeon} - 层级：{tier} - 定价：{pricing}",
             "ui.rangeSub": "区间：低值使用掉落买一+钥匙卖一；高值使用掉落卖一+钥匙买一。",
@@ -860,6 +902,8 @@
             "ui.refined": "精炼",
             "ui.dailyProfit": "每日利润",
             "ui.combatBuffTitle": "战斗增益",
+            "ui.combatDropScrollHintReadyShort": "在第 1 次运行开始后 {minutes} 分钟开启。覆盖 {count} 次宝箱掉落。",
+            "ui.combatDropScrollHintCompareReady": "已准备 {count} 张卷轴。每层提示会显示最佳首次开启时机。",
             "ui.consumablesDay": "消耗品 / 天",
             "ui.putNumberHere": "在这里输入数值",
             "ui.removeOnePercentDrops": "去除 1% 掉落",
@@ -967,6 +1011,10 @@
             "ui.tipAfterKeyNormal": "宝箱利润普通：{range}",
             "ui.tipAfterKeyRefined": "宝箱利润精炼：{range}",
             "ui.tipChestsRefined": "宝箱：{chests} | 精炼：{refined}",
+            "ui.tipCombatDropScrollStart": "最佳开启时机：在第 1 次运行开始后 {minutes} 分钟开启",
+            "ui.tipCombatDropScrollCovered": "受到增益的总运行次数：{count}",
+            "ui.tipCombatDropScrollBonusChest": "额外期望宝箱：{value}",
+            "ui.tipCombatDropScrollBonusRefined": "额外期望精炼：{value}",
             "ui.tipDailyRegularTotal": "普通宝箱总计/天：{range}",
             "ui.tipDailyRefinedTotal": "精炼宝箱总计/天：{range}",
             "ui.tipDailyChestTotal": "宝箱合计/天：{range}",
@@ -1132,9 +1180,23 @@
             "ui.refreshOfficialApiPrices": "刷新目前 API 價格",
             "ui.combatBuff": "戰鬥增益",
             "ui.combatBuffHelp": "目前戰鬥掉落數量（遊戲內）",
+            "ui.combatDropScrolls": "戰鬥掉落卷軸",
+            "ui.combatDropScrollCount": "戰鬥掉落卷軸數量",
+            "ui.combatDropScrollHelpShort": "30 分鐘內掉落數量 +15%，與戰鬥增益疊加。",
             "ui.enterNumber0to20": "請輸入 0 到 20 的數字。",
             "ui.consumablesPerDay": "每日消耗品",
             "ui.consumablesHelp": "預設每日 10m",
+            "ui.none": "無",
+            "ui.clearImport": "清除匯入",
+            "ui.importPastedJson": "匯入貼上的 JSON",
+            "ui.loading": "載入中...",
+            "ui.personalChestLootImport": "個人寶箱掉落匯入",
+            "ui.personalLootBannerActive": "警告：{player} 的個人寶箱掉落已啟用。在有匯入覆蓋的地方，寶箱 EV 會使用你觀察到的平均值。已匯入寶箱記錄：{chests}。已追蹤開啟次數：{opens}。",
+            "ui.personalLootClearedToast": "個人寶箱掉落匯入已清除。",
+            "ui.personalLootImportedToast": "正在使用 {player} 的個人寶箱掉落。",
+            "ui.personalLootPasteLabel": "貼上個人寶箱掉落匯出 JSON",
+            "ui.personalLootPastePlaceholder": "在此貼上 360Dungeon 寶箱匯出 JSON，然後點擊「匯入貼上的 JSON」。",
+            "ui.personalLootSelectedPlayer": "已選擇玩家",
             "ui.clearTimeMinutes": "通關時間（分鐘）",
             "ui.clearTimePlaceholder": "例如 22",
             "ui.enterValidMinutes": "請輸入有效的分鐘數。",
@@ -1224,6 +1286,9 @@
             "ui.runSummary": "通關時間：{clear} - 增益：{buff}",
             "ui.runClearFmt": "{value} 分鐘",
             "ui.runBuffFmt": "{value}/20",
+            "ui.runScrollFmt": "卷軸：{count}",
+            "ui.runSummaryClearOnly": "通關時間：{clear}",
+            "ui.runSummaryBuffOnly": "增益：{buff}",
             "ui.statusClearFmt": "{value}m",
             "ui.selectionSummary": "地下城：{dungeon} - 層級：{tier} - 定價：{pricing}",
             "ui.rangeSub": "區間：低值使用掉落買一+鑰匙賣一；高值使用掉落賣一+鑰匙買一。",
@@ -1293,6 +1358,8 @@
             "ui.refined": "精煉",
             "ui.dailyProfit": "每日利潤",
             "ui.combatBuffTitle": "戰鬥增益",
+            "ui.combatDropScrollHintReadyShort": "在第 1 次運行開始後 {minutes} 分鐘啟用。覆蓋 {count} 次寶箱掉落。",
+            "ui.combatDropScrollHintCompareReady": "已準備 {count} 張卷軸。每層提示會顯示最佳首次啟用時機。",
             "ui.consumablesDay": "消耗品 / 天",
             "ui.putNumberHere": "在此輸入數值",
             "ui.removeOnePercentDrops": "移除 1% 掉落",
@@ -1398,6 +1465,10 @@
             "ui.tipAfterKeyNormal": "寶箱利潤普通：{range}",
             "ui.tipAfterKeyRefined": "寶箱利潤精煉：{range}",
             "ui.tipChestsRefined": "寶箱：{chests} | 精煉：{refined}",
+            "ui.tipCombatDropScrollStart": "最佳啟用時機：在第 1 次運行開始後 {minutes} 分鐘啟用",
+            "ui.tipCombatDropScrollCovered": "受到增益的總運行次數：{count}",
+            "ui.tipCombatDropScrollBonusChest": "額外期望寶箱：{value}",
+            "ui.tipCombatDropScrollBonusRefined": "額外期望精煉：{value}",
             "ui.tipDailyRegularTotal": "普通寶箱總計/天：{range}",
             "ui.tipDailyRefinedTotal": "精煉寶箱總計/天：{range}",
             "ui.tipDailyChestTotal": "寶箱合計/天：{range}",
@@ -2667,19 +2738,36 @@
         };
     }
 
+    function shareToggleEnabled(rawValue) {
+        const text = shareString(rawValue).trim().toLowerCase();
+        return text === "1" || text === "true" || text === "on";
+    }
+
     function packRunInputs(raw) {
         const parsed = parseJsonForShare(raw, {});
         const clearTime = shareString(parsed?.clearTime);
         const buff = shareString(parsed?.buff || "20");
-        if (!clearTime && buff === "20") return [];
-        return trimTrailingEmpty([clearTime, buff !== "20" ? buff : ""]);
+        const scrollEnabled = shareToggleEnabled(parsed?.combatDropScrollEnabled ?? parsed?.scrollEnabled);
+        const scrollCountRaw = finiteShareNumber(parsed?.combatDropScrollCount ?? parsed?.scrollCount);
+        const scrollCount = Math.max(1, Math.min(48, Math.floor(scrollCountRaw == null ? 1 : scrollCountRaw)));
+        if (!clearTime && buff === "20" && !scrollEnabled && scrollCount === 1) return [];
+        return trimTrailingEmpty([
+            clearTime,
+            buff !== "20" ? buff : "",
+            scrollEnabled ? 1 : "",
+            (scrollEnabled || scrollCount !== 1) ? scrollCount : "",
+        ]);
     }
 
     function unpackRunInputs(value) {
         if (!Array.isArray(value)) return {};
+        const scrollCountRaw = finiteShareNumber(value.length > 3 ? value[3] : 1);
+        const scrollCount = Math.max(1, Math.min(48, Math.floor(scrollCountRaw == null ? 1 : scrollCountRaw)));
         return {
             clearTime: shareString(value[0]),
             buff: value.length > 1 ? shareString(value[1]) : "20",
+            combatDropScrollEnabled: value.length > 2 && shareToggleEnabled(value[2]) ? "1" : "0",
+            combatDropScrollCount: String(scrollCount),
         };
     }
 
@@ -3581,6 +3669,10 @@
         setTextBySelector("#runPill", tt("ui.needed", "Needed"));
         setLabelPrefix('label[for="playerBuff"]', `${tt("ui.combatBuff", "Combat buff")}: `);
         setTextBySelector("#playerBuffErr", tt("ui.enterNumber0to20", "Enter a number from 0 to 20."));
+        setTextBySelector('label[for="combatDropScrollCount"]', tt("ui.combatDropScrolls", "Combat drop scrolls"));
+        setTipBySelector('[data-tip="Adds +15% drop quantity for 30m. Additive with Combat buff."]', tt("ui.combatDropScrollHelpShort", "Adds +15% drop quantity for 30m. Additive with Combat buff."));
+        setAttrBySelector("#combatDropScrollCount", "placeholder", tt("ui.none", "None"));
+        setAttrBySelector("#combatDropScrollCount", "aria-label", tt("ui.combatDropScrollCount", "Combat drop scroll count"));
         setTextBySelector('label[for="advFoodPerDay"]', tt("ui.consumablesPerDay", "Consumables Per Day"));
         setLabelPrefix('label[for="clearTime"]', `${tt("ui.clearTimeMinutes", "Clear time (minutes)")} `);
         setAttrBySelector("#clearTime", "placeholder", tt("ui.clearTimePlaceholder", "e.g. 22"));

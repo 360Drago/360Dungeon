@@ -18,8 +18,10 @@
   };
   const SHARED_LOOT_OVERRIDE_ENABLED_KEY = "dungeon.lootOverrideEnabled";
   const SHARED_LOOT_PRICE_OVERRIDES_KEY = "dungeon.lootPriceOverrides";
+  const SHARED_RUN_INPUTS_KEY = "dungeon.runInputs";
   const SHARED_FOOD_KEY = "dungeon.foodPerDay";
   const MIRROR_HRID = "/items/mirror_of_protection";
+  const COMBAT_DROP_SCROLL_ICON_PATH = "./assets/Svg/Combat_drop_scroll.svg";
   const BACKSLOT_HRIDS = [
     "/items/enchanted_cloak",
     "/items/sinister_cape",
@@ -272,6 +274,48 @@
     } catch (_) { }
   }
 
+  function normalizeCombatDropScrollState(raw) {
+    const normalize = getPlayerInputShared()?.normalizeCombatDropScrollState;
+    if (typeof normalize === "function") return normalize(raw);
+    return { enabled: false, count: 1 };
+  }
+
+  function clampCombatDropScrollCount(raw) {
+    const clamp = getPlayerInputShared()?.clampCombatDropScrollCount;
+    if (typeof clamp === "function") return clamp(raw);
+    return { ok: false, num: 1 };
+  }
+
+  function loadSharedCombatDropScrollState() {
+    return normalizeCombatDropScrollState(parseJSON(storageGet(SHARED_RUN_INPUTS_KEY), {}));
+  }
+
+  function persistSharedCombatDropScrollState() {
+    const scrollState = normalizeCombatDropScrollState({
+      combatDropScrollEnabled: state.scrollEnabled,
+      combatDropScrollCount: state.scrollCount,
+    });
+    state.scrollEnabled = scrollState.enabled;
+    state.scrollCount = scrollState.count;
+    const base = parseJSON(storageGet(SHARED_RUN_INPUTS_KEY), {});
+    const next = (base && typeof base === "object") ? { ...base } : {};
+    next.combatDropScrollEnabled = scrollState.enabled ? "1" : "0";
+    next.combatDropScrollCount = String(scrollState.count);
+    storageSet(SHARED_RUN_INPUTS_KEY, JSON.stringify(next));
+  }
+
+  function dispatchCombatDropScrollStateChanged() {
+    try {
+      document.dispatchEvent(new CustomEvent("dungeon:combat-drop-scroll-changed", {
+        detail: {
+          enabled: !!state.scrollEnabled,
+          count: Math.max(1, Number(state.scrollCount) || 1),
+          source: "zone-compare",
+        },
+      }));
+    } catch (_) { }
+  }
+
   function clampBuff(v) {
     const n = Number(v);
     if (!Number.isFinite(n)) return 20;
@@ -297,6 +341,7 @@
 
   function loadState() {
     const sharedLootState = loadSharedLootOverrideState();
+    const sharedScrollState = loadSharedCombatDropScrollState();
     const rawBuff = storageGet(STORAGE.buff);
     const buffDefaulted = (rawBuff == null || asText(rawBuff) === "") ? 20 : clampBuff(rawBuff);
     const rawFoodShared = storageGet(SHARED_FOOD_KEY);
@@ -314,11 +359,13 @@
       manualOverrides: sharedLootState.manualOverrides || {},
       mirrorBackslot: storageGet(STORAGE.mirrorBackslot) === "1",
       keyPlannerImport: storageGet(STORAGE.keyPlannerImport) === "1",
+      scrollEnabled: !!sharedScrollState.enabled,
+      scrollCount: Math.max(1, Number(sharedScrollState.count) || 1),
     };
   }
 
   function persistState(opts = {}) {
-    const { emitLootOverrides = false } = opts || {};
+    const { emitLootOverrides = false, emitCombatDropScroll = false } = opts || {};
     try {
       storageSet(STORAGE.minutes, JSON.stringify(state.minutes || {}));
       storageSet(STORAGE.buff, String(clampBuff(state.buff)));
@@ -326,10 +373,12 @@
       storageSet(SHARED_FOOD_KEY, asText(state.food || ""));
       storageSet(STORAGE.lowDrop, state.lowDrop ? "1" : "0");
       persistSharedLootOverrideState();
+      persistSharedCombatDropScrollState();
       storageSet(STORAGE.mirrorBackslot, state.mirrorBackslot ? "1" : "0");
       storageSet(STORAGE.keyPlannerImport, state.keyPlannerImport ? "1" : "0");
     } catch (_) { }
     if (emitLootOverrides) dispatchLootOverrideStateChanged();
+    if (emitCombatDropScroll) dispatchCombatDropScrollStateChanged();
   }
 
   function ensureZoneState(zoneKey) {
@@ -495,15 +544,19 @@
       }
       #zoneCompareInline .zcInfoTipNeg { color:#ef4444; font-weight:700; }
       #zoneCompareInline .zcPill { margin-top:12px; border:1px solid rgba(255,255,255,.12); border-radius:28px; background:rgba(255,255,255,.03); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:end; }
-      #zoneCompareInline .zcControlsGroup { min-width:0; width:max-content; max-width:100%; display:grid; gap:12px; justify-items:stretch; justify-self:start; align-items:center; }
-      #zoneCompareInline .zcInputRail { width:auto; max-width:100%; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:18px 24px; }
-      #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap { display:grid; grid-template-columns:auto auto; gap:12px; align-items:center; min-width:0; }
+      #zoneCompareInline .zcControlsGroup { min-width:0; width:100%; max-width:none; display:grid; gap:10px; justify-items:stretch; justify-self:stretch; align-items:start; }
+      #zoneCompareInline .zcInputRail { width:100%; max-width:none; display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:flex-start; gap:14px 18px; }
+      #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap, #zoneCompareInline .zcScrollWrap { display:flex; flex-direction:column; gap:8px; align-items:flex-start; min-width:0; }
       #zoneCompareInline .zcLabel { margin:0; color:var(--muted-color); font-size:13px; white-space:nowrap; }
       #zoneCompareInline .zcLabel span { color:var(--title-color); font-weight:700; }
       #zoneCompareInline .zcInputRail .zcLabel { font-size:14px; }
       #zoneCompareInline .zcBuffWrap .zcInput { width:92px; text-align:center; }
       #zoneCompareInline .zcFoodWrap .zcInput { width:138px; max-width:min(138px, 100%); text-align:center; }
-      #zoneCompareInline .zcOptionsWrap { width:auto; max-width:100%; display:flex; flex-wrap:wrap; justify-content:flex-start; gap:10px; align-items:center; min-width:0; }
+      #zoneCompareInline .zcScrollWrap { min-width:138px; }
+      #zoneCompareInline .zcScrollWrap .zcScrollInput { width:138px; max-width:min(138px, 100%); text-align:center; }
+      #zoneCompareInline .zcScrollWrap .zcScrollInput.is-empty { opacity:.82; }
+      #zoneCompareInline .zcScrollHint { width:100%; margin:0; color:var(--muted-color); font-size:12px; }
+      #zoneCompareInline .zcOptionsWrap { width:100%; max-width:none; display:flex; flex-wrap:wrap; justify-content:flex-start; gap:10px; align-items:center; min-width:0; }
       #zoneCompareInline .zcCheckWrap { display:flex; align-items:center; gap:8px; }
       #zoneCompareInline .zcCheck { margin:0; }
       #zoneCompareInline .zcCheck .modeTglText { width:auto; white-space:nowrap; }
@@ -610,7 +663,7 @@
         #zoneCompareInline .zcGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
         #zoneCompareInline .zcPill { grid-template-columns:1fr; border-radius:22px; }
         #zoneCompareInline .zcControlsGroup { width:100%; }
-        #zoneCompareInline .zcInputRail { width:100%; }
+        #zoneCompareInline .zcInputRail { width:100%; max-width:none; }
         #zoneCompareInline .zcAct { justify-content:flex-end; }
       }
       @media (max-width:760px) {
@@ -618,8 +671,9 @@
         #zoneCompareInline .zcPill { grid-template-columns:1fr; border-radius:16px; }
         #zoneCompareInline .zcControlsGroup { width:100%; }
         #zoneCompareInline .zcInputRail { justify-content:flex-start; gap:12px; }
-        #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap { grid-template-columns:1fr; gap:6px; width:100%; }
+        #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap, #zoneCompareInline .zcScrollWrap { gap:6px; width:100%; }
         #zoneCompareInline .zcFoodWrap .zcInput, #zoneCompareInline .zcBuffWrap .zcInput { width:100%; max-width:none; }
+        #zoneCompareInline .zcScrollWrap .zcScrollInput { width:100%; max-width:none; }
         #zoneCompareInline .zcOptionsWrap { justify-content:flex-start; }
         #zoneCompareInline .zcAct { justify-content:flex-start; flex-wrap:wrap; }
         #zoneCompareInline .zcAct .simBtn, #zoneCompareInline .zcAct .miniBtn { width:100%; min-width:0; }
@@ -740,7 +794,12 @@
               <label class="zcLabel" for="zcFood">${t("ui.consumablesDay", "Consumables / day")}</label>
               <input id="zcFood" class="zcInput" type="text" inputmode="decimal" placeholder="${t("ui.putNumberHere", "Put your number in here")}" />
             </div>
+            <div class="zcScrollWrap">
+              <label class="zcLabel" for="zcScrollCount">${t("ui.combatDropScrolls", "Combat drop scrolls")}</label>
+              <input id="zcScrollCount" class="zcInput zcScrollInput is-empty" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" value="" placeholder="${escAttr(t("ui.none", "None"))}" aria-label="${escAttr(t("ui.combatDropScrollCount", "Combat drop scroll count"))}" />
+            </div>
           </div>
+          <div class="zcScrollHint" id="zcScrollHint" hidden></div>
           <div class="zcOptionsWrap">
             <div class="zcCheckWrap">
               <input id="zcLowDrop" class="modeTglInp" type="checkbox" />
@@ -837,6 +896,43 @@
     }
     if (v < 0) return `(-${compact})`;
     return compact;
+  }
+
+  function fmtPlanMinutes(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "-";
+    const rounded = Math.round(n * 10) / 10;
+    return Number.isInteger(rounded) ? String(Math.round(rounded)) : rounded.toFixed(1).replace(/\.0$/, "");
+  }
+
+  function fmtExpectedChestBonus(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return "0";
+    return n.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+  }
+
+  function previewScrollMinutes(minutes = [], maxItems = 4) {
+    if (!Array.isArray(minutes) || !minutes.length) return "";
+    return minutes.slice(0, maxItems).map((minute) => `${fmtPlanMinutes(minute)}m`).join(", ");
+  }
+
+  function updateScrollHint() {
+    const hint = byId("zcScrollHint");
+    if (!hint) return;
+    if (!state.scrollEnabled) {
+      hint.textContent = "";
+      hint.hidden = true;
+      return;
+    }
+    const count = Math.max(1, Number(state.scrollCount) || 1);
+    hint.textContent = tf(
+      "ui.combatDropScrollHintCompareReady",
+      "{count} scrolls ready. Each tier tooltip shows the best first activation timing.",
+      {
+        count: String(count),
+      }
+    );
+    hint.hidden = false;
   }
 
   function parseMinutes(raw) {
@@ -1726,7 +1822,13 @@
       const parsed = parseMinutes(state.minutes?.[zone.key]?.[tier] || "");
       if (!parsed.ok) continue;
 
-      const sim = calc.computeLootCountsFor24h({ clearMinutes: parsed.num, buffTier: state.buff, tierKey: tier });
+      const combatDropScrollCount = state.scrollEnabled ? Math.max(1, Number(state.scrollCount) || 1) : 0;
+      const sim = calc.computeLootCountsFor24h({
+        clearMinutes: parsed.num,
+        buffTier: state.buff,
+        tierKey: tier,
+        combatDropScrollCount,
+      });
       const range = calc.computeChestCenteredProfitRangeAfterTaxAndFood({
         chestCount: sim.chest,
         refinedCount: sim.refined,
@@ -1786,6 +1888,24 @@
         tf("ui.tipProfitHigh", "High (List sell): {value}", { value: fmtCoins(profitHigh) }),
         tf("ui.tipStandardExplained", "Standard view: {value} | instant sell @ bid, keys @ bid", { value: fmtCoins(profit) }),
       ];
+      if (state.scrollEnabled && sim.scrollPlan?.coveredChestCount) {
+        const scrollPlan = sim.scrollPlan;
+        tipLines.splice(4, 0,
+          "",
+          tf("ui.tipCombatDropScrollStart", "Best time to start: {minutes} min into run 1", {
+            minutes: fmtPlanMinutes(scrollPlan.startOffsetMinutes),
+          }),
+          tf("ui.tipCombatDropScrollCovered", "Total number of buffed runs: {count}", {
+            count: String(scrollPlan.coveredChestCount),
+          }),
+          tf("ui.tipCombatDropScrollBonusChest", "Extra expected chests: {value}", {
+            value: fmtExpectedChestBonus(sim.scrollExtraExpectedChest),
+          }),
+          tf("ui.tipCombatDropScrollBonusRefined", "Extra expected refined: {value}", {
+            value: fmtExpectedChestBonus(sim.scrollExtraExpectedRefined),
+          })
+        );
+      }
       setTierTip(tip, tipLines);
       setTierPlannerImport(tip, {
         source: "zone_compare",
@@ -1906,6 +2026,7 @@
   function syncInputs(zones) {
     const buff = byId("zcBuff");
     const food = byId("zcFood");
+    const scrollCount = byId("zcScrollCount");
     const low = byId("zcLowDrop");
     const mirror = byId("zcMirrorBackslot");
     const keyPlanner = byId("zcKeyPlannerImport");
@@ -1913,6 +2034,10 @@
 
     if (buff) buff.value = String(clampBuff(state.buff));
     if (food) food.value = asText(state.food || "");
+    if (scrollCount) {
+      scrollCount.value = state.scrollEnabled ? String(Math.max(1, Number(state.scrollCount) || 1)) : "";
+      scrollCount.classList.toggle("is-empty", !state.scrollEnabled);
+    }
     if (low) low.checked = !!state.lowDrop;
     if (mirror) mirror.checked = !!state.mirrorBackslot;
     if (keyPlanner) keyPlanner.checked = !!state.keyPlannerImport;
@@ -1925,11 +2050,14 @@
         if (el) el.value = asText(state.minutes[z.key][tier] || "");
       });
     });
+    updateScrollHint();
   }
 
   function resetAllInputs(zones, source = "") {
     state.buff = 20;
     state.food = "10m";
+    state.scrollEnabled = false;
+    state.scrollCount = 1;
     state.lowDrop = false;
     state.mirrorBackslot = false;
     state.keyPlannerImport = false;
@@ -1957,6 +2085,11 @@
     if (buffEl) buffEl.value = "20";
     const foodEl = byId("zcFood");
     if (foodEl) foodEl.value = "10m";
+    const scrollCountEl = byId("zcScrollCount");
+    if (scrollCountEl) {
+      scrollCountEl.value = "";
+      scrollCountEl.classList.add("is-empty");
+    }
     const lowEl = byId("zcLowDrop");
     if (lowEl) lowEl.checked = false;
     const mirrorEl = byId("zcMirrorBackslot");
@@ -1965,7 +2098,7 @@
     if (keyPlannerEl) keyPlannerEl.checked = false;
     const manualEl = byId("zcManualLootToggle");
     if (manualEl) manualEl.checked = false;
-    persistState({ emitLootOverrides: true });
+    persistState({ emitLootOverrides: true, emitCombatDropScroll: true });
     renderApiWarnings([]);
     if (source) void renderManualPanel(zones, source);
     void refreshKeyPlannerImportActionState(zones);
@@ -1976,6 +2109,7 @@
     const panel = byId("zoneCompareInline");
     const buff = byId("zcBuff");
     const food = byId("zcFood");
+    const scrollCount = byId("zcScrollCount");
     const low = byId("zcLowDrop");
     const mirror = byId("zcMirrorBackslot");
     const keyPlanner = byId("zcKeyPlannerImport");
@@ -2031,6 +2165,44 @@
       food.addEventListener("change", commitNormalized);
       food.addEventListener("blur", commitNormalized);
       food.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        commitNormalized();
+        void calculateAll(zones);
+      });
+    }
+
+    if (scrollCount) {
+      const normalizeScrollDraft = (raw) => {
+        const digits = String(raw == null ? "" : raw).replace(/[^\d]/g, "");
+        if (!digits) return { enabled: false, count: 1 };
+        const numeric = Number(digits);
+        if (!Number.isFinite(numeric) || numeric <= 0) return { enabled: false, count: 1 };
+        return { enabled: true, count: clampCombatDropScrollCount(digits).num };
+      };
+      const commitLive = () => {
+        const draft = normalizeScrollDraft(scrollCount.value || "");
+        state.scrollEnabled = draft.enabled;
+        state.scrollCount = draft.count;
+        scrollCount.value = draft.enabled ? String(draft.count) : "";
+        persistSharedCombatDropScrollState();
+        updateScrollHint();
+        syncInputs([]);
+      };
+      const commitNormalized = () => {
+        const draft = normalizeScrollDraft(scrollCount.value || "");
+        state.scrollEnabled = draft.enabled;
+        state.scrollCount = draft.count;
+        scrollCount.value = draft.enabled ? String(draft.count) : "";
+        persistState({ emitCombatDropScroll: true });
+        syncInputs([]);
+      };
+      scrollCount.addEventListener("focus", () => {
+        scrollCount.select?.();
+      });
+      scrollCount.addEventListener("input", commitLive);
+      scrollCount.addEventListener("change", commitNormalized);
+      scrollCount.addEventListener("blur", commitNormalized);
+      scrollCount.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         commitNormalized();
         void calculateAll(zones);
@@ -2146,6 +2318,8 @@
       const applyResetDefaultsOnly = () => {
         state.buff = 20;
         state.food = "10m";
+        state.scrollEnabled = false;
+        state.scrollCount = 1;
         state.lowDrop = false;
         state.mirrorBackslot = false;
         state.keyPlannerImport = false;
@@ -2155,6 +2329,11 @@
         if (buffEl) buffEl.value = "20";
         const foodEl = byId("zcFood");
         if (foodEl) foodEl.value = "10m";
+        const scrollCountEl = byId("zcScrollCount");
+        if (scrollCountEl) {
+          scrollCountEl.value = "";
+          scrollCountEl.classList.add("is-empty");
+        }
         const lowEl = byId("zcLowDrop");
         if (lowEl) lowEl.checked = false;
         const mirrorEl = byId("zcMirrorBackslot");
@@ -2164,9 +2343,10 @@
         const manualEl = byId("zcManualLootToggle");
         if (manualEl) manualEl.checked = false;
 
-        persistState({ emitLootOverrides: true });
+        persistState({ emitLootOverrides: true, emitCombatDropScroll: true });
         void renderManualPanel(zones, source);
         void refreshKeyPlannerImportActionState(zones);
+        updateScrollHint();
       };
       const clearResetArm = () => {
         resetArmed = false;
@@ -2275,6 +2455,13 @@
     }, { passive: true });
     document.addEventListener("site:lang-changed", () => {
       if (toggle.checked) void render();
+    });
+    document.addEventListener("dungeon:combat-drop-scroll-changed", (event) => {
+      const detail = event?.detail || {};
+      if (String(detail.source || "") === "zone-compare") return;
+      state.scrollEnabled = !!detail.enabled;
+      state.scrollCount = Math.max(1, Number(detail.count) || 1);
+      if (toggle.checked) syncInputs(readZones());
     });
     document.addEventListener("dungeon:loot-overrides-changed", () => {
       if (!toggle.checked) return;

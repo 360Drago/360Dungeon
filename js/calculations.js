@@ -10,6 +10,10 @@
 */
 (() => {
   "use strict";
+  const DAY_MINUTES = 1440;
+  const COMBAT_DROP_SCROLL_DURATION_MINUTES = 30;
+  const COMBAT_DROP_SCROLL_EXTRA_RATE = 0.15;
+  const COMBAT_DROP_SCROLL_MAX_COUNT = Math.floor(DAY_MINUTES / COMBAT_DROP_SCROLL_DURATION_MINUTES);
 
   function toNum(x, fallback = NaN) {
     const n = Number(x);
@@ -33,6 +37,84 @@
     const t = toNum(buffTier, NaN);
     if (!Number.isFinite(t) || t <= 0) return 0;
     return 0.20 + ((t - 1) * 0.005);
+  }
+
+  function clampCombatDropScrollCount(raw) {
+    const count = Math.floor(toNum(raw, NaN));
+    if (!Number.isFinite(count) || count < 1) return 1;
+    return Math.max(1, Math.min(COMBAT_DROP_SCROLL_MAX_COUNT, count));
+  }
+
+  /**
+   * Models the best continuous combat-drop-scroll window over a 24h day.
+   * Chests are awarded at the end of each run, so the first activation is delayed
+   * to maximize how many chest timestamps fit inside the chained 30-minute windows.
+   */
+  function computeCombatDropScrollPlan({
+    clearMinutes,
+    scrollCount = 0,
+    buffDurationMinutes = COMBAT_DROP_SCROLL_DURATION_MINUTES,
+    dayMinutes = DAY_MINUTES,
+  }) {
+    const ct = toNum(clearMinutes, NaN);
+    const rawCount = Math.floor(toNum(scrollCount, NaN));
+    const requestedScrollCount = Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 0;
+    const normalizedScrollCount = requestedScrollCount > 0
+      ? Math.max(1, Math.min(Math.floor(dayMinutes / buffDurationMinutes), requestedScrollCount))
+      : 0;
+    const totalDurationMinutes = normalizedScrollCount > 0
+      ? Math.min(dayMinutes, normalizedScrollCount * buffDurationMinutes)
+      : 0;
+    const runs = computeRunsPerDay(ct);
+
+    if (!Number.isFinite(ct) || ct <= 0 || runs <= 0 || totalDurationMinutes <= 0) {
+      return {
+        enabled: normalizedScrollCount > 0,
+        requestedScrollCount,
+        scrollCount: normalizedScrollCount,
+        buffDurationMinutes,
+        totalDurationMinutes,
+        dayMinutes,
+        runs,
+        coveredChestCount: 0,
+        additionalExpectedChest: 0,
+        extraRate: COMBAT_DROP_SCROLL_EXTRA_RATE,
+        startOffsetMinutes: 0,
+        windowStartMinutes: 0,
+        windowEndMinutes: totalDurationMinutes,
+        firstChestMinute: 0,
+        lastChestMinute: 0,
+        coveredChestMinutes: [],
+      };
+    }
+
+    const coveredChestCount = Math.min(runs, Math.max(0, Math.ceil(totalDurationMinutes / ct)));
+    const startOffsetMinutes = Math.max(0, (coveredChestCount * ct) - totalDurationMinutes);
+    const windowStartMinutes = startOffsetMinutes;
+    const windowEndMinutes = windowStartMinutes + totalDurationMinutes;
+    const coveredChestMinutes = [];
+    for (let index = 1; index <= coveredChestCount; index += 1) {
+      coveredChestMinutes.push(index * ct);
+    }
+
+    return {
+      enabled: true,
+      requestedScrollCount,
+      scrollCount: normalizedScrollCount,
+      buffDurationMinutes,
+      totalDurationMinutes,
+      dayMinutes,
+      runs,
+      coveredChestCount,
+      additionalExpectedChest: coveredChestCount * COMBAT_DROP_SCROLL_EXTRA_RATE,
+      extraRate: COMBAT_DROP_SCROLL_EXTRA_RATE,
+      startOffsetMinutes,
+      windowStartMinutes,
+      windowEndMinutes,
+      firstChestMinute: coveredChestMinutes[0] || 0,
+      lastChestMinute: coveredChestMinutes[coveredChestMinutes.length - 1] || 0,
+      coveredChestMinutes,
+    };
   }
 
   /** Applies combat buff EV and rounds to whole items. */
@@ -65,16 +147,23 @@
    * Compute the loot+key counts the UI stores in dungeon.lootCounts.
    * @returns {{runs:number, entry:number, chestKey:number, chest:number, refined:number, baseChest:number, baseRefined:number, extraRate:number}}
    */
-  function computeLootCountsFor24h({ clearMinutes, buffTier, tierKey }) {
+  function computeLootCountsFor24h({ clearMinutes, buffTier, tierKey, combatDropScrollCount = 0 }) {
     const runs = computeRunsPerDay(clearMinutes);
-    const extraRate = combatBuffExtraRate(buffTier);
+    const combatExtraRate = combatBuffExtraRate(buffTier);
+    const scrollPlan = computeCombatDropScrollPlan({ clearMinutes, scrollCount: combatDropScrollCount });
+    const scrollExtraExpectedChest = scrollPlan.additionalExpectedChest;
+    const scrollExtraRate = runs > 0 ? (scrollExtraExpectedChest / runs) : 0;
+    const extraRate = combatExtraRate + scrollExtraRate;
 
     // Regular dungeon-chest drops are boosted by combat-buff extra drop rate.
+    // Combat drop scrolls add another +15% to the chest opportunities they cover.
     // Entry keys track *regular chests received* (not raw runs).
-    const expectedChest = runs * (1 + extraRate);
+    const expectedChest = (runs * (1 + combatExtraRate)) + scrollExtraExpectedChest;
     const chest = Math.round(expectedChest);
 
     const t = String(tierKey || "").toUpperCase();
+    const refinedPerRunRatio = computeRefinedPerRunRatio(t);
+    const scrollExtraExpectedRefined = scrollExtraExpectedChest * refinedPerRunRatio;
     let refined = 0;
     if (t === "T1") refined = Math.round(chest * 0.33);
     else if (t !== "T0") refined = chest;
@@ -91,6 +180,11 @@
       baseChest: runs,
       baseRefined: (t === "T0") ? 0 : (t === "T1" ? (runs * 0.33) : runs),
       extraRate,
+      combatExtraRate,
+      scrollExtraRate,
+      scrollExtraExpectedChest,
+      scrollExtraExpectedRefined,
+      scrollPlan,
       expectedChest,
     };
   }
@@ -337,6 +431,10 @@
   window.DungeonCalculations = {
     computeRunsPerDay,
     combatBuffExtraRate,
+    clampCombatDropScrollCount,
+    computeCombatDropScrollPlan,
+    COMBAT_DROP_SCROLL_DURATION_MINUTES,
+    COMBAT_DROP_SCROLL_EXTRA_RATE,
     applyCombatBuffToLootCount,
     computeBaseRefinedCount,
     computeRefinedPerRunRatio,
