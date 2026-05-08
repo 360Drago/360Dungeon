@@ -1383,6 +1383,8 @@
   let quickKeySavingsEnsureToken = 0;
   let quickKeySavingsEnsureKey = "";
   let quickKeySavingsPositionRaf = 0;
+  let quickKeySavingsPositionRafLate = 0;
+  let quickKeySavingsResizeObserver = null;
 
   function normalizeModelFromSource(source) {
     const shared = getPricingStateShared();
@@ -1659,10 +1661,34 @@
     if (quickKeySavingsPositionRaf) {
       window.cancelAnimationFrame(quickKeySavingsPositionRaf);
     }
+    if (quickKeySavingsPositionRafLate) {
+      window.cancelAnimationFrame(quickKeySavingsPositionRafLate);
+    }
     quickKeySavingsPositionRaf = window.requestAnimationFrame(() => {
       quickKeySavingsPositionRaf = 0;
       updateQuickKeySavingsPosition();
+      quickKeySavingsPositionRafLate = window.requestAnimationFrame(() => {
+        quickKeySavingsPositionRafLate = 0;
+        updateQuickKeySavingsPosition();
+      });
     });
+  }
+
+  function bindQuickKeySavingsPositionWatchers() {
+    if (typeof ResizeObserver === "function" && !quickKeySavingsResizeObserver) {
+      quickKeySavingsResizeObserver = new ResizeObserver(() => {
+        scheduleQuickKeySavingsPosition();
+      });
+      [optionsHeader, overviewLoot, lootRefinedBox, optionsRight, selectionSummary].forEach((el) => {
+        if (el) quickKeySavingsResizeObserver.observe(el);
+      });
+    }
+    if (document.fonts?.ready && typeof document.fonts.ready.then === "function") {
+      document.fonts.ready.then(() => {
+        scheduleQuickKeySavingsPosition();
+      }).catch(() => { });
+    }
+    window.addEventListener("load", scheduleQuickKeySavingsPosition, { once: true });
   }
 
   function maybeEnsureQuickKeySavingsData(dungeonKey = selectedDungeon, apiSource = activeApiSource) {
@@ -3743,9 +3769,10 @@
     });
   }
   bindQuickKeySavingsInfoTips();
+  bindQuickKeySavingsPositionWatchers();
   syncQuickKeySavingsVisibility();
   updateQuickKeySavingsTooltips();
-  window.addEventListener("resize", updateQuickKeySavingsPosition);
+  window.addEventListener("resize", scheduleQuickKeySavingsPosition);
 
   function tickTimers() {
     const ts = activeApiSource === "other"
