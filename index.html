@@ -466,8 +466,6 @@
                   <div class="lootSub">Token value: <span id="lootTokenValue">—</span></div>
                 </div>
               </div>
-
-
               <div class="lootBox" data-loot="refined" id="lootRefinedBox" tabindex="0" data-tip="">
                 <img class="lootIcon" id="lootRefinedIcon" alt="Refined chest" />
                 <div class="lootMeta">
@@ -476,6 +474,10 @@
                   <div class="lootSub">EV/chest: <span id="lootRefinedChestEv">—</span></div>
                 </div>
               </div>
+              <button class="summaryInfoBtn overviewKeySavingsBtn" type="button" id="overviewKeySavingsInfoBtn" aria-label="Daily key savings details" aria-expanded="false">
+                <span class="summaryInfoGlyph" aria-hidden="true">i</span>
+                <span class="summaryInfoTip" role="tooltip"></span>
+              </button>
             </div>
           </div>
 
@@ -487,8 +489,7 @@
               <div class="statusLine"><span class="label">Dungeon</span><span class="value" id="statusDungeon">—</span>
               </div>
               <div class="statusLine"><span class="label">Tier</span><span class="value" id="statusTier">—</span></div>
-              <div class="statusLine"><span class="label">Pricing</span><span class="value" id="statusPricing">—</span>
-              </div>
+              <div class="statusLine"><span class="label">Pricing</span><span class="value statusValueWithTip"><span id="statusPricing">—</span><span class="tipHost simpleTip tipSingleLine" id="statusPricingApiTip" data-tip="" tabindex="0" role="button" aria-label="Pricing API details" hidden>?</span></span></div>
               <div class="statusLine"><span class="label">Clear</span><span class="value" id="statusClear">—</span>
               </div>
               <div class="statusLine"><span class="label">Buff</span><span class="value" id="statusBuff">—</span></div>
@@ -629,7 +630,7 @@
                   </div>
                 </div>
                 <div class="combatDropScrollBox is-empty" id="combatDropScrollBox">
-                  <img id="combatDropScrollIcon" class="combatDropScrollIcon" src="./assets/Svg/Combat_drop_scroll.svg" alt="" loading="lazy" onerror="this.style.display='none'" />
+                  <img id="combatDropScrollIcon" class="combatDropScrollIcon" src="./assets/Svg/Scroll_of_combat_drop.svg" alt="" loading="lazy" onerror="this.style.display='none'" />
                   <input id="combatDropScrollCount" class="combatDropScrollCountInput" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" value="" placeholder="None" aria-label="Combat drop scroll count" />
                 </div>
                 <div class="combatDropScrollPlan muted small" id="combatDropScrollPlan" hidden></div>
