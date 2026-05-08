@@ -2695,6 +2695,19 @@
         }, 0);
       }
     });
+    document.addEventListener("dungeon:prices-refreshed", (event) => {
+      const detail = event?.detail || {};
+      const apiSource = normalizeApiSource(detail.apiSource || getActiveApiSource());
+      marketCacheBySource = {
+        ...marketCacheBySource,
+        [apiSource]: null,
+      };
+      marketCacheTsBySource = {
+        ...marketCacheTsBySource,
+        [apiSource]: 0,
+      };
+      if (toggle.checked) void render();
+    });
     apply();
 
     window.KeysInline = {

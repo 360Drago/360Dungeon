@@ -48,9 +48,9 @@
     mooket: null,
   };
 
-  // Auto-refresh cadence for official API: hourly with +/- 10 minutes randomness
-  const OFFICIAL_REFRESH_BASE_MS = 60 * 60 * 1000;
-  const OFFICIAL_REFRESH_JITTER_MS = 10 * 60 * 1000;
+  // Auto-refresh each API source roughly one hour after its last successful refresh.
+  const API_AUTO_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+  const API_AUTO_REFRESH_IDLE_POLL_MS = 5 * 60 * 1000;
 
 
   const KEY_MANUAL = "dungeon.manualInputs";
@@ -127,11 +127,13 @@
   const selectionSummary = document.getElementById("selectionSummary");
   const quickStartHint = document.getElementById("quickStartHint");
   const resetBtn = document.getElementById("resetBtn");
+  const optionsHeader = document.querySelector(".optionsHeader");
 
   // Status stack
   const statusDungeon = document.getElementById("statusDungeon");
   const statusTier = document.getElementById("statusTier");
   const statusPricing = document.getElementById("statusPricing");
+  const statusPricingApiTip = document.getElementById("statusPricingApiTip");
   const statusClear = document.getElementById("statusClear");
   const statusBuff = document.getElementById("statusBuff");
 
@@ -198,6 +200,7 @@
 
   const simplePricingLine = document.getElementById("simplePricingLine");
   const simpleOfficialRefreshBtn = document.getElementById("simpleOfficialRefreshBtn");
+  const overviewLoot = document.getElementById("overviewLoot");
 
   const simpleResultsCard = document.getElementById("simpleResultsCard");
   const simpleEntryKeys = document.getElementById("simpleEntryKeys");
@@ -321,6 +324,7 @@
   const lootRefinedQty = document.getElementById("lootRefinedQty");
 
   const lootRefinedBox = document.getElementById("lootRefinedBox");
+  const overviewKeySavingsInfoBtn = document.getElementById("overviewKeySavingsInfoBtn");
 
   const lootEntryEach = document.getElementById("lootEntryEach");
   const lootEntryTotal = document.getElementById("lootEntryTotal");
@@ -1146,17 +1150,10 @@
   async function refreshApiSourcesForPicker() {
     if (apiSourceMenuRefreshInFlight) return apiSourceMenuRefreshInFlight;
     apiSourceMenuRefreshInFlight = (async () => {
-      if (selectedDungeon) {
-        await Promise.allSettled([
-          refreshOfficialPricesForDungeon(selectedDungeon, { silent: true, reason: "api-picker" }),
-          refreshOtherPricesForDungeon(selectedDungeon, { silent: true, reason: "api-picker" }),
-        ]);
-      } else {
-        await Promise.allSettled([
-          refreshApiSourceForAllDungeons("official", { silent: true, reason: "api-picker" }),
-          refreshApiSourceForAllDungeons("other", { silent: true, reason: "api-picker" }),
-        ]);
-      }
+      await Promise.allSettled([
+        refreshApiSourceIfUpdated("official", { silent: true, reason: "api-picker" }),
+        refreshApiSourceIfUpdated("other", { silent: true, reason: "api-picker" }),
+      ]);
       updateApiSourceFooter();
     })().finally(() => {
       apiSourceMenuRefreshInFlight = null;
@@ -1166,9 +1163,14 @@
 
   function updateApiSourceFooter() {
     const loadMeta = getApiSourceLoadMeta(activeApiSource);
+    const freshnessTone = getApiSourceFreshnessTone(activeApiSource);
     if (apiSourceTag) apiSourceTag.hidden = false;
     if (apiSourceTag) apiSourceTag.classList.toggle("is-error", loadMeta.showError);
-    if (apiSourceCurrentBtn) apiSourceCurrentBtn.classList.toggle("is-error", loadMeta.showError);
+    if (apiSourceCurrentBtn) {
+      apiSourceCurrentBtn.classList.toggle("is-error", loadMeta.showError);
+      apiSourceCurrentBtn.classList.toggle("is-aging", freshnessTone === "is-aging");
+      apiSourceCurrentBtn.classList.toggle("is-stale", freshnessTone === "is-stale");
+    }
     if (apiSourceCurrentBtn) {
       const label = apiSourceLabel(activeApiSource);
       apiSourceCurrentBtn.setAttribute(
@@ -1377,6 +1379,9 @@
   // Math helpers live in js/calculations.js
   const Calc = window.DungeonCalculations;
   if (!Calc) console.error("[landing.js] Missing window.DungeonCalculations. Add js/calculations.js before landing.js");
+  let quickKeySavingsEnsureToken = 0;
+  let quickKeySavingsEnsureKey = "";
+  let quickKeySavingsPositionRaf = 0;
 
   function normalizeModelFromSource(source) {
     const shared = getPricingStateShared();
@@ -1491,6 +1496,219 @@
     return "-";
   }
 
+  function getCurrentApiBuyPrice(dungeonKey, priceKey, apiSource = activeApiSource) {
+    const pricesAB = getSavedKeyPricesAB(getSavedByApiSource(apiSource), dungeonKey);
+    if (!pricesAB) return null;
+    if (priceKey === "entry") {
+      return Number.isFinite(pricesAB.entryAsk) ? pricesAB.entryAsk : pricesAB.entryBid;
+    }
+    if (priceKey === "chest") {
+      return Number.isFinite(pricesAB.chestKeyAsk) ? pricesAB.chestKeyAsk : pricesAB.chestKeyBid;
+    }
+    return null;
+  }
+
+  function buildKeyPlannerPreviewValue(price, buyPrice) {
+    if (!Number.isFinite(price)) return "—";
+    const priceText = escapeHtml(formatCoinsCompact(price));
+    if (!Number.isFinite(buyPrice)) return priceText;
+    const savings = buyPrice - price;
+    if (!Number.isFinite(savings) || Math.abs(savings) < 1) return priceText;
+    const deltaClass = savings > 0 ? "is-positive" : "is-negative";
+    const deltaText = savings > 0
+      ? i18nF("ui.keysImportDeltaSaving", "Saving {value}", { value: formatCoinsCompact(Math.abs(savings)) })
+      : i18nF("ui.keysImportDeltaWasting", "Wasting {value}", { value: formatCoinsCompact(Math.abs(savings)) });
+    return `${priceText} <span class="keyPlannerDelta ${deltaClass}">[${escapeHtml(deltaText)}]</span>`;
+  }
+
+  function formatSignedCompactText(value) {
+    if (!Number.isFinite(value)) return "—";
+    if (Math.abs(value) < 1) return "0";
+    const prefix = value > 0 ? "+" : "-";
+    return `${prefix}${formatCoinsCompact(Math.abs(value))}`;
+  }
+
+  function formatSignedCompactHtml(value) {
+    const className = value > 0 ? "is-positive" : value < 0 ? "is-negative" : "";
+    const safeClass = className ? ` summaryInfoTipValue ${className}` : "";
+    return `<span class="${safeClass.trim()}">${escapeHtml(formatSignedCompactText(value))}</span>`;
+  }
+
+  function buildQuickKeySavingsTooltipHtml(dungeonKey, apiSource = activeApiSource) {
+    const sourceLabel = escapeHtml(apiSourceLabel(apiSource));
+    const ensureKey = `${sanitizeApiSource(apiSource)}:${String(dungeonKey || "").trim()}`;
+    const title = i18nF("ui.keysDailySavingsTitle", "Daily key savings vs {source} API buy price", {
+      source: sourceLabel,
+    });
+    if (!dungeonKey) {
+      return `<div class="summaryInfoTipLine">${title}</div><div class="summaryInfoTipLine">${escapeHtml(i18nT("ui.pickDungeonFirst", "Pick a dungeon first."))}</div>`;
+    }
+
+    const imported = getCachedKeyPlannerImport(dungeonKey, { apiSource });
+    if (!imported?.ok || !Number.isFinite(imported?.entryPrice) || !Number.isFinite(imported?.chestKeyPrice)) {
+      const loadingMessage = i18nF("ui.keysDailySavingsLoading", "{source} API key prices are still loading for this dungeon.", {
+        source: apiSourceLabel(apiSource),
+      });
+      const fallbackMessage = quickKeySavingsEnsureKey === ensureKey
+        ? loadingMessage
+        : (imported?.errorMessage || i18nT("ui.keysDailySavingsUnavailable", "Load Keys tab import data to compare daily key savings."));
+      return `<div class="summaryInfoTipLine">${title}</div><div class="summaryInfoTipLine">${escapeHtml(fallbackMessage)}</div>`;
+    }
+
+    const entryBuyPrice = getCurrentApiBuyPrice(dungeonKey, "entry", apiSource);
+    const chestBuyPrice = getCurrentApiBuyPrice(dungeonKey, "chest", apiSource);
+    if (!Number.isFinite(entryBuyPrice) || !Number.isFinite(chestBuyPrice)) {
+      return `<div class="summaryInfoTipLine">${title}</div><div class="summaryInfoTipLine">${escapeHtml(i18nF("ui.keysDailySavingsLoading", "{source} API key prices are still loading for this dungeon.", { source: apiSourceLabel(apiSource) }))}</div>`;
+    }
+
+    const stats = readResultLootAndRuns(dungeonKey);
+    const entryEachSavings = entryBuyPrice - imported.entryPrice;
+    const chestEachSavings = chestBuyPrice - imported.chestKeyPrice;
+    const entryTotalSavings = entryEachSavings * stats.entryKeys;
+    const chestTotalSavings = chestEachSavings * stats.chestKeys;
+    const totalSavings = entryTotalSavings + chestTotalSavings;
+
+    return [
+      `<div class="summaryInfoTipLine">${title}</div>`,
+      `<div class="summaryInfoTipLine">${i18nF("ui.keysDailySavingsEntryLine", "Entry key: {each} each x {count} = {total}", {
+        each: formatSignedCompactHtml(entryEachSavings),
+        count: escapeHtml(formatCount(stats.entryKeys)),
+        total: formatSignedCompactHtml(entryTotalSavings),
+      })}</div>`,
+      `<div class="summaryInfoTipLine">${i18nF("ui.keysDailySavingsChestLine", "Chest key: {each} each x {count} = {total}", {
+        each: formatSignedCompactHtml(chestEachSavings),
+        count: escapeHtml(formatCount(stats.chestKeys)),
+        total: formatSignedCompactHtml(chestTotalSavings),
+      })}</div>`,
+      `<div class="summaryInfoTipLine">${i18nF("ui.keysDailySavingsTotal", "Total/day: {total}", {
+        total: formatSignedCompactHtml(totalSavings),
+      })}</div>`,
+    ].join("");
+  }
+
+  function setQuickKeySavingsTooltip(button, html) {
+    if (!button) return;
+    const tip = button.querySelector(".summaryInfoTip");
+    if (tip) tip.innerHTML = html;
+    button.setAttribute("aria-label", i18nT("ui.keysDailySavingsAria", "Daily key savings details"));
+  }
+
+  function syncQuickKeySavingsVisibility() {
+    if (!overviewKeySavingsInfoBtn) return false;
+    const active = isKeyPlannerModel(pricingModel);
+    if (active) {
+      const positionHost = optionsHeader || overviewLoot;
+      if (positionHost && overviewKeySavingsInfoBtn.parentElement !== positionHost) {
+        positionHost.appendChild(overviewKeySavingsInfoBtn);
+      }
+      overviewKeySavingsInfoBtn.hidden = false;
+      overviewKeySavingsInfoBtn.style.display = "inline-flex";
+      overviewKeySavingsInfoBtn.style.visibility = "hidden";
+    } else {
+      if (overviewKeySavingsInfoBtn.parentElement) {
+        overviewKeySavingsInfoBtn.parentElement.removeChild(overviewKeySavingsInfoBtn);
+      }
+      overviewKeySavingsInfoBtn.hidden = true;
+      overviewKeySavingsInfoBtn.style.display = "none";
+      overviewKeySavingsInfoBtn.style.visibility = "hidden";
+    }
+    overviewKeySavingsInfoBtn.classList.toggle("is-active", active);
+    overviewKeySavingsInfoBtn.setAttribute("aria-hidden", active ? "false" : "true");
+    if (!active) {
+      overviewKeySavingsInfoBtn.classList.remove("is-open");
+      overviewKeySavingsInfoBtn.setAttribute("aria-expanded", "false");
+      overviewKeySavingsInfoBtn.style.removeProperty("left");
+      overviewKeySavingsInfoBtn.style.removeProperty("top");
+      overviewKeySavingsInfoBtn.style.visibility = "hidden";
+    }
+    return active;
+  }
+
+  function updateQuickKeySavingsPosition() {
+    const positionHost = optionsHeader || overviewLoot;
+    if (!overviewKeySavingsInfoBtn || !positionHost || !overviewLoot || !lootRefinedBox) return;
+    if (overviewKeySavingsInfoBtn.hidden) {
+      overviewKeySavingsInfoBtn.style.removeProperty("left");
+      overviewKeySavingsInfoBtn.style.removeProperty("top");
+      overviewKeySavingsInfoBtn.style.visibility = "hidden";
+      return;
+    }
+    const hostRect = positionHost.getBoundingClientRect();
+    const refinedRect = lootRefinedBox.getBoundingClientRect();
+    const isCompactViewport = window.innerWidth <= 820;
+    const rightGap = overviewLoot.clientWidth - (lootRefinedBox.offsetLeft + lootRefinedBox.offsetWidth);
+    const placeBelow = isCompactViewport && rightGap < (overviewKeySavingsInfoBtn.offsetWidth + 8);
+    const left = placeBelow
+      ? Math.round(hostRect.width - overviewKeySavingsInfoBtn.offsetWidth - 12)
+      : Math.round(refinedRect.right - hostRect.left + 8);
+    const top = placeBelow
+      ? Math.round(((resetBtn?.getBoundingClientRect().top || refinedRect.top) - hostRect.top) + Math.max(0, (((resetBtn?.offsetHeight || 0) - overviewKeySavingsInfoBtn.offsetHeight) / 2)))
+      : Math.round(refinedRect.top - hostRect.top);
+    const maxLeft = Math.max(0, Math.round(hostRect.width - overviewKeySavingsInfoBtn.offsetWidth - 8));
+    overviewKeySavingsInfoBtn.style.left = `${Math.min(left, maxLeft)}px`;
+    overviewKeySavingsInfoBtn.style.top = `${top}px`;
+    overviewKeySavingsInfoBtn.style.visibility = "visible";
+  }
+
+  function scheduleQuickKeySavingsPosition() {
+    if (!overviewKeySavingsInfoBtn) return;
+    if (quickKeySavingsPositionRaf) {
+      window.cancelAnimationFrame(quickKeySavingsPositionRaf);
+    }
+    quickKeySavingsPositionRaf = window.requestAnimationFrame(() => {
+      quickKeySavingsPositionRaf = 0;
+      updateQuickKeySavingsPosition();
+    });
+  }
+
+  function maybeEnsureQuickKeySavingsData(dungeonKey = selectedDungeon, apiSource = activeApiSource) {
+    const normalizedDungeonKey = String(dungeonKey || "").trim();
+    const normalizedApiSource = sanitizeApiSource(apiSource);
+    if (!normalizedDungeonKey) return;
+
+    const imported = getCachedKeyPlannerImport(normalizedDungeonKey, { apiSource: normalizedApiSource });
+    const entryBuyPrice = getCurrentApiBuyPrice(normalizedDungeonKey, "entry", normalizedApiSource);
+    const chestBuyPrice = getCurrentApiBuyPrice(normalizedDungeonKey, "chest", normalizedApiSource);
+    const needsApiPrices = !Number.isFinite(entryBuyPrice) || !Number.isFinite(chestBuyPrice);
+    const needsImport = !imported?.ok || !Number.isFinite(imported?.entryPrice) || !Number.isFinite(imported?.chestKeyPrice);
+    if (!needsApiPrices && !needsImport) return;
+
+    const ensureKey = `${normalizedApiSource}:${normalizedDungeonKey}`;
+    if (quickKeySavingsEnsureKey === ensureKey) return;
+
+    quickKeySavingsEnsureKey = ensureKey;
+    const token = ++quickKeySavingsEnsureToken;
+
+    void (async () => {
+      if (needsApiPrices) {
+        try {
+          await refreshApiSourceForDungeon(normalizedDungeonKey, normalizedApiSource, { silent: true, reason: "overview" });
+        } catch (_) { }
+      }
+      try {
+        await ensureKeyPlannerImport(normalizedDungeonKey, { apiSource: normalizedApiSource });
+      } catch (_) { }
+    })().finally(() => {
+      if (token === quickKeySavingsEnsureToken) quickKeySavingsEnsureKey = "";
+      if (selectedDungeon === normalizedDungeonKey && activeApiSource === normalizedApiSource) {
+        updateKeyPlannerImportUi();
+        setQuickKeySavingsTooltip(
+          overviewKeySavingsInfoBtn,
+          buildQuickKeySavingsTooltipHtml(normalizedDungeonKey, normalizedApiSource)
+        );
+      }
+    });
+  }
+
+  function updateQuickKeySavingsTooltips(dungeonKey = selectedDungeon) {
+    if (!syncQuickKeySavingsVisibility()) return;
+    updateQuickKeySavingsPosition();
+    scheduleQuickKeySavingsPosition();
+    maybeEnsureQuickKeySavingsData(dungeonKey, activeApiSource);
+    const html = buildQuickKeySavingsTooltipHtml(dungeonKey, activeApiSource);
+    setQuickKeySavingsTooltip(overviewKeySavingsInfoBtn, html);
+  }
+
   function clamp01(x) {
     if (!Number.isFinite(x)) return 0;
     return Math.max(0, Math.min(1, x));
@@ -1597,6 +1815,8 @@
       // Avoid native browser tooltip
       lootRefinedBox.title = "";
     }
+
+    updateQuickKeySavingsTooltips(selectedDungeon);
 
   }
 
@@ -2401,11 +2621,23 @@
   function ensureApiPricesForDungeon(dungeonKey, model = pricingModel) {
     if (!dungeonKey) return;
     const apiSource = getEffectiveApiSource(model);
-    if (apiSource === "official" && !officialSaved?.[dungeonKey]) {
-      refreshApiSourceForDungeon(dungeonKey, apiSource, { silent: true, reason: "auto" });
+    const savedMap = getSavedByApiSource(apiSource);
+    if (hasSavedApiCoreForDungeon(savedMap, dungeonKey)) return;
+    const handleSettled = () => {
+      if (selectedDungeon !== dungeonKey) return;
+      updateKeyPlannerImportUi();
+      updateQuickKeySavingsTooltips(dungeonKey);
+      void rerenderVisibleResults();
+    };
+    if (apiSource === "official") {
+      Promise.resolve(refreshApiSourceForDungeon(dungeonKey, apiSource, { silent: true, reason: "auto" }))
+        .then(handleSettled)
+        .catch(() => { });
     }
-    if (apiSource === "other" && !otherSaved?.[dungeonKey]) {
-      refreshApiSourceForDungeon(dungeonKey, apiSource, { silent: true, reason: "auto" });
+    if (apiSource === "other") {
+      Promise.resolve(refreshApiSourceForDungeon(dungeonKey, apiSource, { silent: true, reason: "auto" }))
+        .then(handleSettled)
+        .catch(() => { });
     }
   }
 
@@ -2417,7 +2649,7 @@
   }
 
   function syncOfficialAutoRefreshForModel(model = pricingModel) {
-    if (getEffectiveApiSource(model) === "official") startOfficialAutoRefresh();
+    if (getEffectiveApiSource(model)) startOfficialAutoRefresh();
     else stopOfficialAutoRefresh();
   }
 
@@ -2427,10 +2659,11 @@
   }
 
   async function refreshActiveApiForSelectedDungeon(opts = {}) {
-    return refreshApiSourceForDungeon(selectedDungeon, activeApiSource, opts);
+    return refreshApiSourceIfUpdated(activeApiSource, opts);
   }
 
   async function openKeysTabFromPricingCard() {
+    if (selectedDungeon) ensureApiPricesForDungeon(selectedDungeon, "api");
     try {
       await window.KeysInline?.ensurePlannerOpen?.();
     } catch (_) { }
@@ -2449,6 +2682,38 @@
         try { planner?.scrollIntoView(); } catch (_) { }
       }
     }, 120);
+  }
+
+  function closeQuickKeySavingsInfoTips(exceptButton = null) {
+    [overviewKeySavingsInfoBtn].forEach((button) => {
+      if (!button || button === exceptButton) return;
+      button.classList.remove("is-open");
+      button.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function bindQuickKeySavingsInfoTips() {
+    [overviewKeySavingsInfoBtn].forEach((button) => {
+      if (!button) return;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const nextOpen = !button.classList.contains("is-open");
+        closeQuickKeySavingsInfoTips(nextOpen ? button : null);
+        button.classList.toggle("is-open", nextOpen);
+        button.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target.closest(".summaryInfoBtn") : null;
+      if (target) return;
+      closeQuickKeySavingsInfoTips();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      closeQuickKeySavingsInfoTips();
+    });
   }
 
   function syncPricingRefreshControls() {
@@ -3086,6 +3351,7 @@
   });
 
   document.addEventListener("dungeon:pricing-context-changed", () => {
+    updateQuickKeySavingsTooltips();
     void renderLootOverrideList({ keepScroll: true, ensureCache: true });
   });
 
@@ -3100,9 +3366,20 @@
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
-  function nextOfficialAutoDelayMs() {
-    const jitter = (Math.random() * 2 - 1) * OFFICIAL_REFRESH_JITTER_MS; // [-jitter, +jitter]
-    return Math.max(5 * 60 * 1000, OFFICIAL_REFRESH_BASE_MS + jitter);
+  function nextHourlyAutoRefreshDelayMs() {
+    const now = Date.now();
+    const dueTimes = ["official", "other"]
+      .map((source) => {
+        const payloadTs = getApiSourcePayloadUpdatedTs(source);
+        const lastChecked = getApiSourceRefreshTs(source);
+        if (!payloadTs) return 0;
+        const firstDueAt = payloadTs + API_AUTO_REFRESH_INTERVAL_MS;
+        const retryDueAt = lastChecked > 0 ? (lastChecked + API_AUTO_REFRESH_IDLE_POLL_MS) : firstDueAt;
+        return Math.max(firstDueAt, retryDueAt);
+      })
+      .filter((dueAt) => dueAt > 0);
+    if (!dueTimes.length) return API_AUTO_REFRESH_IDLE_POLL_MS;
+    return Math.max(5 * 1000, Math.min(...dueTimes) - now);
   }
 
   let officialAutoTimer = null;
@@ -3224,14 +3501,29 @@
     }
   }
 
+  async function maybeRefreshActiveApiForSelectedDungeon() {
+    const now = Date.now();
+    const dueSources = ["official", "other"].filter((source) => {
+      const payloadTs = getApiSourcePayloadUpdatedTs(source);
+      const lastChecked = getApiSourceRefreshTs(source);
+      if (!payloadTs) return false;
+      if ((now - payloadTs) < API_AUTO_REFRESH_INTERVAL_MS) return false;
+      return !lastChecked || (now - lastChecked) >= API_AUTO_REFRESH_IDLE_POLL_MS;
+    });
+    if (!dueSources.length) return null;
+    const results = [];
+    for (const source of dueSources) {
+      results.push(await refreshApiSourceIfUpdated(source, { silent: true, reason: "hourly-auto" }));
+    }
+    return results;
+  }
+
   function startOfficialAutoRefresh() {
     stopOfficialAutoRefresh();
     officialAutoTimer = window.setTimeout(async () => {
-      if (getEffectiveApiSource(pricingModel) === "official" && selectedDungeon) {
-        await refreshOfficialPricesForDungeon(selectedDungeon, { silent: true, reason: "auto" });
-      }
+      await maybeRefreshActiveApiForSelectedDungeon();
       startOfficialAutoRefresh(); // schedule the next tick
-    }, nextOfficialAutoDelayMs());
+    }, nextHourlyAutoRefreshDelayMs());
   }
 
   function saveRefreshTimestamp(storageKey, now) {
@@ -3337,6 +3629,12 @@
     return refreshApiPricesForDungeon(dungeonKey, opts, buildOtherRefreshConfig());
   }
 
+  function getRefreshConfigForSource(apiSource) {
+    return apiSource === "other"
+      ? buildOtherRefreshConfig()
+      : buildOfficialRefreshConfig();
+  }
+
   function refreshApiSourceForDungeon(dungeonKey, apiSource, opts = {}) {
     if (apiSource === "other") {
       return refreshOtherPricesForDungeon(dungeonKey, opts);
@@ -3355,10 +3653,57 @@
     return out;
   }
 
+  async function refreshApiSourceIfUpdated(apiSource, opts = {}) {
+    const normalizedSource = sanitizeApiSource(apiSource);
+    const cfg = getRefreshConfigForSource(normalizedSource);
+    const stateSource = sanitizeApiSource(cfg.sourceKey || normalizeApiSourceFromLabel(cfg.sourceLabel));
+    const previousPayloadTs = getApiSourcePayloadUpdatedTs(normalizedSource);
+    const now = Date.now();
+    try {
+      setApiSourceLoadState(stateSource, { status: "loading", error: "" });
+      const { json, usedProxy } = await cfg.fetchJson();
+      const sourceTimestamp = normalizeApiPayloadTimestamp(json?.timestamp);
+      const changed = !previousPayloadTs || !sourceTimestamp || sourceTimestamp !== previousPayloadTs;
+      if (!changed) {
+        saveRefreshTimestamp(apiSourceRefreshStorageKey(normalizedSource), now);
+        updateVisibleApiRefreshStamp(normalizedSource, now, usedProxy);
+        setApiSourceLoadState(stateSource, { status: "ready", error: "" });
+        updatePricingHeaderLine();
+        syncPricingRefreshControls();
+        updateApiSourceFooter();
+        if (!opts.silent) showToast(cfg.successToast(usedProxy));
+        return { ok: true, fetchedAt: now, usedProxy, checkedOnly: true };
+      }
+
+      const results = await refreshApiSourceForAllDungeons(normalizedSource, {
+        ...opts,
+        silent: true,
+        reason: opts.reason || "source-update",
+      });
+      setApiSourceLoadState(stateSource, { status: "ready", error: "" });
+      updatePricingHeaderLine();
+      syncPricingRefreshControls();
+      updateApiSourceFooter();
+      if (!opts.silent) showToast(cfg.successToast(usedProxy));
+      return { ok: true, fetchedAt: now, usedProxy, changed: true, results };
+    } catch (err) {
+      saveRefreshTimestamp(apiSourceRefreshStorageKey(normalizedSource), now);
+      updateVisibleApiRefreshStamp(normalizedSource, now, false);
+      setApiSourceLoadState(stateSource, {
+        status: "error",
+        error: err?.message || i18nT("ui.apiRefreshFailed", "Couldn't refresh prices right now."),
+      });
+      updatePricingHeaderLine();
+      syncPricingRefreshControls();
+      updateApiSourceFooter();
+      return { ok: false, error: err?.message || i18nT("ui.apiRefreshFailed", "Couldn't refresh prices right now.") };
+    }
+  }
+
   // Don't seed a fake refresh timestamp on first load; we only set it after a real fetch.
 
   function triggerManualApiRefresh(refreshFn) {
-    return refreshFn(selectedDungeon, { silent: false, reason: "manual" });
+    return refreshFn({ silent: false, reason: "manual" });
   }
 
   async function rerenderVisibleResults(opts = {}) {
@@ -3384,9 +3729,7 @@
 
   bindManualRefreshButton(officialRefreshBtn, refreshActiveApiForSelectedDungeon);
 
-  bindManualRefreshButton(simpleOfficialRefreshBtn, refreshActiveApiForSelectedDungeon, async () => {
-    await rerenderVisibleResults({ includeAdvanced: false });
-  });
+  bindManualRefreshButton(simpleOfficialRefreshBtn, refreshActiveApiForSelectedDungeon);
 
   if (keyPlannerOpenBtn) {
     keyPlannerOpenBtn.addEventListener("click", async (event) => {
@@ -3395,6 +3738,10 @@
       await openKeysTabFromPricingCard();
     });
   }
+  bindQuickKeySavingsInfoTips();
+  syncQuickKeySavingsVisibility();
+  updateQuickKeySavingsTooltips();
+  window.addEventListener("resize", updateQuickKeySavingsPosition);
 
   function tickTimers() {
     const ts = activeApiSource === "other"
@@ -3680,13 +4027,16 @@
       if (!selectedDungeon) {
         keyPlannerPreview.textContent = i18nT("ui.keysImportPreviewEmpty", "Uses Keys tab settings.");
       } else {
-        keyPlannerPreview.textContent = i18nF(
+        const source = apiSourceLabel(info?.apiSource || activeApiSource);
+        const entryBuyPrice = getCurrentApiBuyPrice(selectedDungeon, "entry", info?.apiSource || activeApiSource);
+        const chestBuyPrice = getCurrentApiBuyPrice(selectedDungeon, "chest", info?.apiSource || activeApiSource);
+        keyPlannerPreview.innerHTML = i18nF(
           "ui.keysImportPreviewWithPrices",
-          "{source} • Entry {entry} • Chest {chest}",
+          "(API: {source}) Entry {entry} | Chest {chest}",
           {
-            source: apiSourceLabel(info?.apiSource || activeApiSource),
-            entry: Number.isFinite(info?.entryPrice) ? formatCoinsCompact(info.entryPrice) : "—",
-            chest: Number.isFinite(info?.chestKeyPrice) ? formatCoinsCompact(info.chestKeyPrice) : "—",
+            source: escapeHtml(source),
+            entry: buildKeyPlannerPreviewValue(info?.entryPrice, entryBuyPrice),
+            chest: buildKeyPlannerPreviewValue(info?.chestKeyPrice, chestBuyPrice),
           }
         );
       }
@@ -4077,7 +4427,24 @@
   function updateStatusStack() {
     statusDungeon.textContent = selectedDungeonLabel(selectedDungeon);
     statusTier.textContent = selectedTier || "-";
-    statusPricing.textContent = pricingModelLabel(pricingModel);
+    const usingKeyPlanner = isKeyPlannerModel(pricingModel);
+    statusPricing.textContent = usingKeyPlanner
+      ? i18nT("ui.keyPlannerShort", "Key Planner")
+      : pricingModelLabel(pricingModel);
+    if (statusPricingApiTip) {
+      if (usingKeyPlanner) {
+        const pricingApiTip = i18nF("ui.pricingApiTypeTip", "API: {source}", {
+          source: apiSourceLabel(activeApiSource),
+        });
+        statusPricingApiTip.hidden = false;
+        statusPricingApiTip.dataset.tip = pricingApiTip;
+        statusPricingApiTip.setAttribute("aria-label", pricingApiTip);
+      } else {
+        statusPricingApiTip.hidden = true;
+        statusPricingApiTip.dataset.tip = "";
+        statusPricingApiTip.setAttribute("aria-label", i18nT("ui.pricingApiDetailsAria", "Pricing API details"));
+      }
+    }
 
     const texts = playerStatusTexts(getPlayerParsed());
     statusClear.textContent = texts.statusClear;
@@ -4683,6 +5050,7 @@ ${i18nT("ui.netHour", "Net/hour")}: ${fmtC(bidBidProfit / 24)}`;
       chestKeysEl: simpleChestKeys,
       runsEl: simpleRunsPerDay,
     });
+    updateQuickKeySavingsTooltips(selectedDungeon);
 
     if (simpleResultsSub) {
       simpleResultsSub.textContent = i18nT("ui.standardSub", "Standard: instant sell @ bid - 2% tax; keys @ bid.");
@@ -4751,6 +5119,7 @@ async function renderAdvancedResults() {
     chestKeysEl: advChestKeys,
     runsEl: advRunsPerDay,
   });
+  updateQuickKeySavingsTooltips(selectedDungeon);
 
   const model = pricingModel || "api";
   const label = pricingModelLabel(model);
@@ -4981,13 +5350,17 @@ async function renderAdvancedResults() {
 
   document.addEventListener("dungeon:prices-refreshed", (event) => {
     const detail = event?.detail || {};
-    if (!pendingApiSwapRecalc) return;
     const refreshedDungeon = sanitizeSelectedDungeonKey(detail.dungeonKey || "");
     const refreshedSource = sanitizeApiSource(detail.apiSource || "");
     if (!refreshedDungeon || !refreshedSource) return;
+    const isVisibleActiveRefresh = selectedDungeon === refreshedDungeon && getEffectiveApiSource(pricingModel) === refreshedSource;
+    if (isVisibleActiveRefresh) {
+      window.setTimeout(() => { void rerenderVisibleResults(); }, 30);
+    }
+    if (!pendingApiSwapRecalc) return;
     if (pendingApiSwapRecalc.dungeonKey !== refreshedDungeon || pendingApiSwapRecalc.apiSource !== refreshedSource) return;
     pendingApiSwapRecalc = null;
-    window.setTimeout(() => { triggerActiveCalculateFromEnter(); }, 30);
+    window.setTimeout(() => { void rerenderVisibleResults(); }, 30);
   });
 
   function bindEnterToActiveCalculate(el) {
@@ -5113,7 +5486,7 @@ async function renderAdvancedResults() {
     applyPricingSelectionUi(pricingModel);
     updatePricingAvailability();
 
-    // Start/stop the official hourly auto-refresh based on saved pricing mode.
+    // Start/stop the hourly active API auto-refresh based on saved pricing mode.
     syncOfficialAutoRefreshForModel(pricingModel);
 
     updateAllSummaries();
@@ -5514,6 +5887,7 @@ async function renderAdvancedResults() {
 
   document.addEventListener("keys:import-pricing-changed", () => {
     updateKeyPlannerImportUi();
+    updateQuickKeySavingsTooltips();
     updateEachAndTotalsForDungeon(selectedDungeon);
     if (isKeyPlannerModel(pricingModel)) {
       void rerenderVisibleResults();

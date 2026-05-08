@@ -542,7 +542,18 @@
         visibility:visible;
         transform:translateX(-50%) translateY(0);
       }
+      #zoneCompareInline .zcInfo.has-tip:hover,
+      #zoneCompareInline .zcInfo.has-tip:focus-visible,
+      #zoneCompareInline .zcInfo.has-tip.is-open {
+        z-index:120;
+      }
+      #zoneCompareInline .zcInfo.has-tip:hover .zcInfoTip,
+      #zoneCompareInline .zcInfo.has-tip:focus-visible .zcInfoTip,
+      #zoneCompareInline .zcInfo.has-tip.is-open .zcInfoTip {
+        z-index:121;
+      }
       #zoneCompareInline .zcInfoTipNeg { color:#ef4444; font-weight:700; }
+      #zoneCompareInline .zcInfoTipPos { color:#22c55e; font-weight:700; }
       #zoneCompareInline .zcPill { margin-top:12px; border:1px solid rgba(255,255,255,.12); border-radius:28px; background:rgba(255,255,255,.03); padding:14px 18px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:end; }
       #zoneCompareInline .zcControlsGroup { min-width:0; width:100%; max-width:none; display:grid; gap:10px; justify-items:stretch; justify-self:stretch; align-items:start; }
       #zoneCompareInline .zcInputRail { width:100%; max-width:none; display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:flex-start; gap:14px 18px; }
@@ -553,8 +564,37 @@
       #zoneCompareInline .zcBuffWrap .zcInput { width:92px; text-align:center; }
       #zoneCompareInline .zcFoodWrap .zcInput { width:138px; max-width:min(138px, 100%); text-align:center; }
       #zoneCompareInline .zcScrollWrap { min-width:138px; }
-      #zoneCompareInline .zcScrollWrap .zcScrollInput { width:138px; max-width:min(138px, 100%); text-align:center; }
-      #zoneCompareInline .zcScrollWrap .zcScrollInput.is-empty { opacity:.82; }
+      #zoneCompareInline .zcScrollBox {
+        position:relative;
+        width:138px;
+        max-width:min(138px, 100%);
+      }
+      #zoneCompareInline .zcScrollBox.is-empty {
+        opacity:.84;
+      }
+      #zoneCompareInline .zcScrollBox.is-empty .combatDropScrollIcon {
+        opacity:.42;
+        filter:saturate(.18);
+      }
+      #zoneCompareInline .zcScrollBox .combatDropScrollIcon {
+        position:absolute;
+        inset-inline-start:10px;
+        top:50%;
+        transform:translateY(-50%);
+        width:18px;
+        height:18px;
+        object-fit:contain;
+        opacity:.88;
+        pointer-events:none;
+      }
+      #zoneCompareInline .zcScrollBox .zcScrollInput,
+      #zoneCompareInline .zcScrollBox .zcScrollInput[type="text"] {
+        width:100%;
+        margin:0;
+        padding-inline-start:34px;
+        text-align:left;
+      }
+      #zoneCompareInline .zcScrollWrap .zcScrollInput { text-align:left; }
       #zoneCompareInline .zcScrollHint { width:100%; margin:0; color:var(--muted-color); font-size:12px; }
       #zoneCompareInline .zcOptionsWrap { width:100%; max-width:none; display:flex; flex-wrap:wrap; justify-content:flex-start; gap:10px; align-items:center; min-width:0; }
       #zoneCompareInline .zcCheckWrap { display:flex; align-items:center; gap:8px; }
@@ -673,7 +713,7 @@
         #zoneCompareInline .zcInputRail { justify-content:flex-start; gap:12px; }
         #zoneCompareInline .zcBuffWrap, #zoneCompareInline .zcFoodWrap, #zoneCompareInline .zcScrollWrap { gap:6px; width:100%; }
         #zoneCompareInline .zcFoodWrap .zcInput, #zoneCompareInline .zcBuffWrap .zcInput { width:100%; max-width:none; }
-        #zoneCompareInline .zcScrollWrap .zcScrollInput { width:100%; max-width:none; }
+        #zoneCompareInline .zcScrollBox { width:100%; max-width:none; }
         #zoneCompareInline .zcOptionsWrap { justify-content:flex-start; }
         #zoneCompareInline .zcAct { justify-content:flex-start; flex-wrap:wrap; }
         #zoneCompareInline .zcAct .simBtn, #zoneCompareInline .zcAct .miniBtn { width:100%; min-width:0; }
@@ -796,7 +836,10 @@
             </div>
             <div class="zcScrollWrap">
               <label class="zcLabel" for="zcScrollCount">${t("ui.combatDropScrolls", "Combat drop scrolls")}</label>
-              <input id="zcScrollCount" class="zcInput zcScrollInput is-empty" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" value="" placeholder="${escAttr(t("ui.none", "None"))}" aria-label="${escAttr(t("ui.combatDropScrollCount", "Combat drop scroll count"))}" />
+              <div class="zcScrollBox is-empty" id="zcScrollBox">
+                <img class="combatDropScrollIcon" src="./assets/Svg/Scroll_of_combat_drop.svg" alt="" loading="lazy" onerror="this.style.display='none'" />
+                <input id="zcScrollCount" class="zcInput zcScrollInput" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" value="" placeholder="${escAttr(t("ui.none", "None"))}" aria-label="${escAttr(t("ui.combatDropScrollCount", "Combat drop scroll count"))}" />
+              </div>
             </div>
           </div>
           <div class="zcScrollHint" id="zcScrollHint" hidden></div>
@@ -1085,19 +1128,43 @@
 
   function highlightNegativeTokens(text) {
     const src = String(text == null ? "" : text);
-    const re = /\(-[^()]+\)/g;
-    re.lastIndex = 0;
     let out = "";
     let i = 0;
+    const re = /\((Saving|Wasting) [^()]+\)|\(-[^()]+\)/g;
+    re.lastIndex = 0;
     let m = re.exec(src);
     while (m) {
       out += escText(src.slice(i, m.index));
-      out += `<span class="zcInfoTipNeg">${escText(m[0])}</span>`;
+      const cls = m[0].includes("(Saving ") ? "zcInfoTipPos" : "zcInfoTipNeg";
+      out += `<span class="${cls}">${escText(m[0])}</span>`;
       i = m.index + m[0].length;
       m = re.exec(src);
     }
     out += escText(src.slice(i));
     return out;
+  }
+
+  function getApiBuySidePrice(zoneKey, source, priceKey) {
+    const api = window.DungeonAPI || null;
+    const prices = api?.getKeyPricesAB?.(zoneKey, source) || null;
+    if (!prices || typeof prices !== "object") return null;
+    if (priceKey === "entry") {
+      return Number.isFinite(prices.entryAsk) ? prices.entryAsk : prices.entryBid;
+    }
+    if (priceKey === "chest") {
+      return Number.isFinite(prices.chestKeyAsk) ? prices.chestKeyAsk : prices.chestKeyBid;
+    }
+    return null;
+  }
+
+  function formatDailySavingsSegment(label, craftPrice, buyPrice, count) {
+    if (!Number.isFinite(craftPrice) || !Number.isFinite(buyPrice) || !Number.isFinite(count) || count <= 0) return "";
+    const total = (buyPrice - craftPrice) * count;
+    if (!Number.isFinite(total) || Math.abs(total) < 1) return "";
+    const token = total > 0
+      ? tf("ui.keysImportDeltaSaving", "Saving {value}", { value: fmtCoins(Math.abs(total)) })
+      : tf("ui.keysImportDeltaWasting", "Wasting {value}", { value: fmtCoins(Math.abs(total)) });
+    return `${label} (${token})`;
   }
 
   function setTierTip(tipBtn, lines) {
@@ -1867,6 +1934,24 @@
       const chestTotalHigh = normalTotalHigh + refinedTotalHigh;
       const profitLow = Number(range?.profitLow);
       const profitHigh = Number(range?.profitHigh);
+      const tipSource = getActiveApiSource();
+      const entrySavingsLine = state.keyPlannerImport
+        ? formatDailySavingsSegment(
+          t("ui.entryKey", "Entry Key"),
+          Number(z.prices?.entryBid),
+          getApiBuySidePrice(zone.key, tipSource, "entry"),
+          Number(sim.entry || 0)
+        )
+        : "";
+      const chestSavingsLine = state.keyPlannerImport
+        ? formatDailySavingsSegment(
+          t("ui.chestKey", "Chest Key"),
+          Number(z.prices?.chestKeyBid),
+          getApiBuySidePrice(zone.key, tipSource, "chest"),
+          Number(sim.chestKey || 0)
+        )
+        : "";
+      const keySavingsLine = [entrySavingsLine, chestSavingsLine].filter(Boolean).join(" | ");
       const tipLines = [
         `${zone.title} ${tier}`,
         "",
@@ -1879,6 +1964,7 @@
           chests: Number(sim.chest || 0).toLocaleString(),
           refined: Number(sim.refined || 0).toLocaleString(),
         }),
+        keySavingsLine ? tf("ui.tipDailyKeySavings", "Key savings/day: {value}", { value: keySavingsLine }) : "",
         "",
         tf("ui.tipDailyRegularTotal", "Normal total/day: {range}", { range: formatRange(normalTotalLow, normalTotalHigh) }),
         tf("ui.tipDailyRefinedTotal", "Refined total/day: {range}", { range: formatRange(refinedTotalLow, refinedTotalHigh) }),
@@ -2027,6 +2113,7 @@
     const buff = byId("zcBuff");
     const food = byId("zcFood");
     const scrollCount = byId("zcScrollCount");
+    const scrollBox = byId("zcScrollBox");
     const low = byId("zcLowDrop");
     const mirror = byId("zcMirrorBackslot");
     const keyPlanner = byId("zcKeyPlannerImport");
@@ -2036,7 +2123,9 @@
     if (food) food.value = asText(state.food || "");
     if (scrollCount) {
       scrollCount.value = state.scrollEnabled ? String(Math.max(1, Number(state.scrollCount) || 1)) : "";
-      scrollCount.classList.toggle("is-empty", !state.scrollEnabled);
+    }
+    if (scrollBox) {
+      scrollBox.classList.toggle("is-empty", !state.scrollEnabled);
     }
     if (low) low.checked = !!state.lowDrop;
     if (mirror) mirror.checked = !!state.mirrorBackslot;
@@ -2086,9 +2175,12 @@
     const foodEl = byId("zcFood");
     if (foodEl) foodEl.value = "10m";
     const scrollCountEl = byId("zcScrollCount");
+    const scrollBoxEl = byId("zcScrollBox");
     if (scrollCountEl) {
       scrollCountEl.value = "";
-      scrollCountEl.classList.add("is-empty");
+    }
+    if (scrollBoxEl) {
+      scrollBoxEl.classList.add("is-empty");
     }
     const lowEl = byId("zcLowDrop");
     if (lowEl) lowEl.checked = false;
@@ -2110,6 +2202,7 @@
     const buff = byId("zcBuff");
     const food = byId("zcFood");
     const scrollCount = byId("zcScrollCount");
+    const scrollBox = byId("zcScrollBox");
     const low = byId("zcLowDrop");
     const mirror = byId("zcMirrorBackslot");
     const keyPlanner = byId("zcKeyPlannerImport");
@@ -2172,6 +2265,11 @@
     }
 
     if (scrollCount) {
+      if (scrollBox) {
+        scrollBox.addEventListener("click", () => {
+          scrollCount.focus();
+        });
+      }
       const normalizeScrollDraft = (raw) => {
         const digits = String(raw == null ? "" : raw).replace(/[^\d]/g, "");
         if (!digits) return { enabled: false, count: 1 };
@@ -2184,6 +2282,7 @@
         state.scrollEnabled = draft.enabled;
         state.scrollCount = draft.count;
         scrollCount.value = draft.enabled ? String(draft.count) : "";
+        if (scrollBox) scrollBox.classList.toggle("is-empty", !draft.enabled);
         persistSharedCombatDropScrollState();
         updateScrollHint();
         syncInputs([]);
@@ -2193,6 +2292,7 @@
         state.scrollEnabled = draft.enabled;
         state.scrollCount = draft.count;
         scrollCount.value = draft.enabled ? String(draft.count) : "";
+        if (scrollBox) scrollBox.classList.toggle("is-empty", !draft.enabled);
         persistState({ emitCombatDropScroll: true });
         syncInputs([]);
       };
