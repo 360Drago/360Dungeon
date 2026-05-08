@@ -128,6 +128,7 @@
   const quickStartHint = document.getElementById("quickStartHint");
   const resetBtn = document.getElementById("resetBtn");
   const optionsHeader = document.querySelector(".optionsHeader");
+  const optionsRight = optionsHeader?.querySelector(".optionsRight") || null;
 
   // Status stack
   const statusDungeon = document.getElementById("statusDungeon");
@@ -1603,7 +1604,7 @@
       }
       overviewKeySavingsInfoBtn.hidden = false;
       overviewKeySavingsInfoBtn.style.display = "inline-flex";
-      overviewKeySavingsInfoBtn.style.visibility = "hidden";
+      overviewKeySavingsInfoBtn.style.visibility = "visible";
     } else {
       if (overviewKeySavingsInfoBtn.parentElement) {
         overviewKeySavingsInfoBtn.parentElement.removeChild(overviewKeySavingsInfoBtn);
@@ -1625,28 +1626,31 @@
   }
 
   function updateQuickKeySavingsPosition() {
-    const positionHost = optionsHeader || overviewLoot;
-    if (!overviewKeySavingsInfoBtn || !positionHost || !overviewLoot || !lootRefinedBox) return;
+    if (!overviewKeySavingsInfoBtn || !lootRefinedBox || !optionsHeader) return;
     if (overviewKeySavingsInfoBtn.hidden) {
       overviewKeySavingsInfoBtn.style.removeProperty("left");
       overviewKeySavingsInfoBtn.style.removeProperty("top");
+      overviewKeySavingsInfoBtn.style.removeProperty("right");
       overviewKeySavingsInfoBtn.style.visibility = "hidden";
       return;
     }
-    const hostRect = positionHost.getBoundingClientRect();
+    const headerRect = optionsHeader.getBoundingClientRect();
     const refinedRect = lootRefinedBox.getBoundingClientRect();
-    const isCompactViewport = window.innerWidth <= 820;
-    const rightGap = overviewLoot.clientWidth - (lootRefinedBox.offsetLeft + lootRefinedBox.offsetWidth);
-    const placeBelow = isCompactViewport && rightGap < (overviewKeySavingsInfoBtn.offsetWidth + 8);
-    const left = placeBelow
-      ? Math.round(hostRect.width - overviewKeySavingsInfoBtn.offsetWidth - 12)
-      : Math.round(refinedRect.right - hostRect.left + 8);
-    const top = placeBelow
-      ? Math.round(((resetBtn?.getBoundingClientRect().top || refinedRect.top) - hostRect.top) + Math.max(0, (((resetBtn?.offsetHeight || 0) - overviewKeySavingsInfoBtn.offsetHeight) / 2)))
-      : Math.round(refinedRect.top - hostRect.top);
-    const maxLeft = Math.max(0, Math.round(hostRect.width - overviewKeySavingsInfoBtn.offsetWidth - 8));
-    overviewKeySavingsInfoBtn.style.left = `${Math.min(left, maxLeft)}px`;
-    overviewKeySavingsInfoBtn.style.top = `${top}px`;
+    const rightRect = optionsRight?.getBoundingClientRect() || null;
+    const buttonWidth = overviewKeySavingsInfoBtn.offsetWidth || 18;
+    const gap = 8;
+    const desiredLeft = (refinedRect.right - headerRect.left) + gap;
+    const maxLeft = rightRect
+      ? (rightRect.left - headerRect.left) - buttonWidth - gap
+      : desiredLeft;
+    const resolvedLeft = Math.max(
+      refinedRect.left - headerRect.left,
+      Math.min(desiredLeft, maxLeft)
+    );
+    const resolvedTop = Math.max(0, (refinedRect.top - headerRect.top) + 6);
+    overviewKeySavingsInfoBtn.style.left = `${Math.round(resolvedLeft)}px`;
+    overviewKeySavingsInfoBtn.style.top = `${Math.round(resolvedTop)}px`;
+    overviewKeySavingsInfoBtn.style.removeProperty("right");
     overviewKeySavingsInfoBtn.style.visibility = "visible";
   }
 
