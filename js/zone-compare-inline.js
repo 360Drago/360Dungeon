@@ -21,6 +21,8 @@
   const SHARED_RUN_INPUTS_KEY = "dungeon.runInputs";
   const SHARED_RUN_INPUTS_BY_CONTEXT_KEY = "dungeon.runInputsByContext.v1";
   const SHARED_FOOD_KEY = "dungeon.foodPerDay";
+  const SELECTED_DUNGEON_KEY = "dungeon.selectedDungeon";
+  const SELECTED_TIER_KEY = "dungeon.selectedTier";
   const MIRROR_HRID = "/items/mirror_of_protection";
   const COMBAT_DROP_SCROLL_ICON_PATH = "./assets/Svg/Combat_drop_scroll.svg";
   const BACKSLOT_HRIDS = [
@@ -402,6 +404,34 @@
       });
     }
     storageSet(SHARED_RUN_INPUTS_BY_CONTEXT_KEY, JSON.stringify(nextByContext));
+  }
+
+  function syncSharedRunTimingStateFromZoneMinutes() {
+    const sharedByContext = parseJSON(storageGet(SHARED_RUN_INPUTS_BY_CONTEXT_KEY), {});
+    const nextByContext = (sharedByContext && typeof sharedByContext === "object") ? { ...sharedByContext } : {};
+
+    Object.keys(state.minutes || {}).forEach((zoneKey) => {
+      const perTier = state.minutes?.[zoneKey];
+      if (!perTier || typeof perTier !== "object") return;
+      TIERS.forEach((tierKey) => {
+        const contextKey = `${zoneKey}::${tierKey}`;
+        const existing = nextByContext[contextKey];
+        const row = (existing && typeof existing === "object") ? { ...existing } : {};
+        row.clearTime = asText(perTier[tierKey] || "");
+        nextByContext[contextKey] = row;
+      });
+    });
+    storageSet(SHARED_RUN_INPUTS_BY_CONTEXT_KEY, JSON.stringify(nextByContext));
+
+    const selectedDungeon = asText(storageGet(SELECTED_DUNGEON_KEY));
+    const selectedTier = asText(storageGet(SELECTED_TIER_KEY)).toUpperCase();
+    if (!selectedDungeon || !selectedTier) return;
+    const selectedClearTime = asText(state?.minutes?.[selectedDungeon]?.[selectedTier] || "");
+    const sharedRunInputs = parseJSON(storageGet(SHARED_RUN_INPUTS_KEY), {});
+    const nextRunInputs = (sharedRunInputs && typeof sharedRunInputs === "object")
+      ? { ...sharedRunInputs, clearTime: selectedClearTime }
+      : { clearTime: selectedClearTime };
+    storageSet(SHARED_RUN_INPUTS_KEY, JSON.stringify(nextRunInputs));
   }
 
   function ensureZoneState(zoneKey) {
@@ -2409,6 +2439,7 @@
           if (input.value !== nextValue) input.value = nextValue;
           state.minutes[z.key][tier] = asText(nextValue);
           persistState();
+          syncSharedRunTimingStateFromZoneMinutes();
         };
         input.addEventListener("input", commit);
         input.addEventListener("change", commit);
