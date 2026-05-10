@@ -2082,14 +2082,22 @@
             if (value == null || value === "") return;
             out[key] = String(value);
         });
-        return repairSharedStateMap(captureLiveShareState(out));
+        return sanitizeStateMap(out);
     }
 
     function applyStateMap(rawMap) {
-        const map = repairSharedStateMap(rawMap);
+        const map = sanitizeStateMap(rawMap);
         STATE_KEYS.forEach((key) => storageRemoveItem(key));
         Object.entries(map).forEach(([key, value]) => storageSetItem(key, value));
         return map;
+    }
+
+    function captureShareStateMap() {
+        return repairSharedStateMap(captureLiveShareState(captureStateMap()));
+    }
+
+    function applySharedImportStateMap(rawMap) {
+        return applyStateMap(repairSharedStateMap(rawMap));
     }
 
     function getActiveProfileSlot() {
@@ -3678,7 +3686,7 @@
     }
 
     function buildShareUrl() {
-        const encoded = buildSegmentedShareHash(captureStateMap());
+        const encoded = buildSegmentedShareHash(captureShareStateMap());
         if (!encoded) return "";
         const url = new URL(window.location.href);
         url.hash = encoded;
@@ -3731,7 +3739,7 @@
             if (!rawHash) return { applied: false, partial: false };
             const decoded = decodeShareCandidate(rawHash);
             if (!decoded || typeof decoded.state !== "object") return { applied: false, partial: false };
-            const state = applyStateMap(decoded.state);
+            const state = applySharedImportStateMap(decoded.state);
             setTempSharedState(state, { partial: !!decoded.partial });
             window.history.replaceState({}, "", clearShareStateUrlParts(url, rawHash));
             return { applied: true, partial: !!decoded.partial };
