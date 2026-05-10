@@ -19,6 +19,7 @@
   const SHARED_LOOT_OVERRIDE_ENABLED_KEY = "dungeon.lootOverrideEnabled";
   const SHARED_LOOT_PRICE_OVERRIDES_KEY = "dungeon.lootPriceOverrides";
   const SHARED_RUN_INPUTS_KEY = "dungeon.runInputs";
+  const SHARED_RUN_INPUTS_BY_CONTEXT_KEY = "dungeon.runInputsByContext.v1";
   const SHARED_FOOD_KEY = "dungeon.foodPerDay";
   const MIRROR_HRID = "/items/mirror_of_protection";
   const COMBAT_DROP_SCROLL_ICON_PATH = "./assets/Svg/Combat_drop_scroll.svg";
@@ -379,6 +380,28 @@
     } catch (_) { }
     if (emitLootOverrides) dispatchLootOverrideStateChanged();
     if (emitCombatDropScroll) dispatchCombatDropScrollStateChanged();
+  }
+
+  function clearSharedRunTimingState() {
+    const sharedRunInputs = parseJSON(storageGet(SHARED_RUN_INPUTS_KEY), {});
+    const nextRunInputs = (sharedRunInputs && typeof sharedRunInputs === "object")
+      ? { ...sharedRunInputs, clearTime: "" }
+      : { clearTime: "" };
+    storageSet(SHARED_RUN_INPUTS_KEY, JSON.stringify(nextRunInputs));
+
+    const sharedByContext = parseJSON(storageGet(SHARED_RUN_INPUTS_BY_CONTEXT_KEY), {});
+    const nextByContext = {};
+    if (sharedByContext && typeof sharedByContext === "object") {
+      Object.keys(sharedByContext).forEach((contextKey) => {
+        const row = sharedByContext[contextKey];
+        if (!row || typeof row !== "object") return;
+        nextByContext[contextKey] = {
+          ...row,
+          clearTime: "",
+        };
+      });
+    }
+    storageSet(SHARED_RUN_INPUTS_BY_CONTEXT_KEY, JSON.stringify(nextByContext));
   }
 
   function ensureZoneState(zoneKey) {
@@ -2190,6 +2213,7 @@
     if (keyPlannerEl) keyPlannerEl.checked = false;
     const manualEl = byId("zcManualLootToggle");
     if (manualEl) manualEl.checked = false;
+    clearSharedRunTimingState();
     persistState({ emitLootOverrides: true, emitCombatDropScroll: true });
     renderApiWarnings([]);
     if (source) void renderManualPanel(zones, source);
