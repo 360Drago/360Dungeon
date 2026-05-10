@@ -32,7 +32,7 @@
     const WHITELIST_URL = "./assets/WhiteList.txt";
     const PROFILE_SNAPSHOT_VERSION = 2;
     const SHARE_PAYLOAD_VERSION = 9;
-    const SHARE_CRITICAL_VERSION = 2;
+    const SHARE_CRITICAL_VERSION = 3;
     const SHARE_SEGMENT_DELIMITER = "-";
     const PROFILE_SLOT_COUNT = 4;
     const LS_PROFILE_ACTIVE = "site.profile.active";
@@ -184,6 +184,19 @@
         r: 15,
         rc: 16,
         po: 17,
+    });
+    const SHARE_CRITICAL_INDEX_V3 = Object.freeze({
+        v: 0,
+        vm: 1,
+        d: 2,
+        t: 3,
+        f: 4,
+        zf: 5,
+        b: 6,
+        z: 7,
+        fc: 8,
+        r: 9,
+        rc: 10,
     });
     const SHARE_FLAG_ADVANCED = 1;
     const SHARE_FLAG_LOOT_OVERRIDE = 2;
@@ -2069,13 +2082,14 @@
             if (value == null || value === "") return;
             out[key] = String(value);
         });
-        return sanitizeStateMap(out);
+        return repairSharedStateMap(captureLiveShareState(out));
     }
 
     function applyStateMap(rawMap) {
-        const map = sanitizeStateMap(rawMap);
+        const map = repairSharedStateMap(rawMap);
         STATE_KEYS.forEach((key) => storageRemoveItem(key));
         Object.entries(map).forEach(([key, value]) => storageSetItem(key, value));
+        return map;
     }
 
     function getActiveProfileSlot() {
@@ -2802,12 +2816,40 @@
         if (!Array.isArray(value)) return {};
         const scrollCountRaw = finiteShareNumber(value.length > 3 ? value[3] : 1);
         const scrollCount = Math.max(1, Math.min(48, Math.floor(scrollCountRaw == null ? 1 : scrollCountRaw)));
+        const buffRaw = value.length > 1 ? shareString(value[1]) : "";
         return {
             clearTime: shareString(value[0]),
-            buff: value.length > 1 ? shareString(value[1]) : "20",
+            buff: buffRaw || "20",
             combatDropScrollEnabled: value.length > 2 && shareToggleEnabled(value[2]) ? "1" : "0",
             combatDropScrollCount: String(scrollCount),
         };
+    }
+
+    function clampShareBuffValue(rawValue) {
+        const n = finiteShareNumber(rawValue);
+        if (n == null) return 20;
+        return Math.max(0, Math.min(20, Math.round(n)));
+    }
+
+    function normalizeLiveShareScrollState(rawValue) {
+        const digits = shareString(rawValue).replace(/[^\d]/g, "");
+        if (!digits) return { enabled: false, count: 1 };
+        const count = Math.max(1, Math.min(48, Math.floor(Number(digits) || 1)));
+        return { enabled: true, count };
+    }
+
+    function normalizeRunInputsForShare(rawValue) {
+        const normalized = unpackRunInputs(packRunInputs(JSON.stringify(rawValue || {})));
+        return {
+            clearTime: shareString(normalized.clearTime),
+            buff: shareString(normalized.buff || "20") || "20",
+            combatDropScrollEnabled: shareToggleEnabled(normalized.combatDropScrollEnabled) ? "1" : "0",
+            combatDropScrollCount: shareString(normalized.combatDropScrollCount || "1") || "1",
+        };
+    }
+
+    function hasMeaningfulRunInputs(rawValue) {
+        return !isPackedValueEmpty(packRunInputs(JSON.stringify(rawValue || {})));
     }
 
     function packFlatNumericHridMap(raw) {
@@ -3138,6 +3180,199 @@
         return unpackLegacySparseContextRows(value);
     }
 
+    function selectedShareContext(rawMap) {
+        const dungeonKey = shareString(rawMap?.["dungeon.selectedDungeon"]).trim().toLowerCase();
+        const tierKey = shareString(rawMap?.["dungeon.selectedTier"]).trim().toUpperCase();
+        if (!SHARE_DUNGEON_INDEX.has(dungeonKey)) return null;
+        if (!SHARE_TIER_KEY_RE.test(tierKey)) return null;
+        return {
+            dungeonKey,
+            tierKey,
+            contextKey: `${dungeonKey}::${tierKey}`,
+        };
+    }
+
+    function hasMeaningfulContextRunInputs(rawValue) {
+        return !isPackedValueEmpty(packSparseContextRows(JSON.stringify(rawValue || {})));
+    }
+
+    function captureLiveShareState(rawMap) {
+        const map = sanitizeStateMap(rawMap);
+        const zoneBuffEl = document.getElementById("zcBuff");
+        if (zoneBuffEl) {
+            const buff = clampShareBuffValue(zoneBuffEl.value);
+            if (buff !== 20) map["dungeon.zoneCompare.buff.v3"] = String(buff);
+            else delete map["dungeon.zoneCompare.buff.v3"];
+        }
+
+        const zoneFoodEl = document.getElementById("zcFood");
+        if (zoneFoodEl) {
+            const zoneFood = shareString(zoneFoodEl.value).trim();
+            if (zoneFood) {
+                map["dungeon.zoneCompare.food.v3"] = zoneFood;
+                if (!map["dungeon.foodPerDay"]) map["dungeon.foodPerDay"] = zoneFood;
+            }
+        }
+
+        let sawZoneMinuteInput = false;
+        let hasZoneMinuteValue = false;
+        const zoneMinutes = {};
+        SHARE_DUNGEON_KEYS.forEach((dungeonKey) => {
+            const perTier = {};
+            let hasTierValue = false;
+            SHARE_CONTEXT_TIERS.forEach((tierKey) => {
+                const input = document.getElementById(`zcMin-${dungeonKey}-${tierKey}`);
+                if (!input) return;
+                sawZoneMinuteInput = true;
+                const value = shareString(input.value).slice(0, 4);
+                if (!value) return;
+                perTier[tierKey] = value;
+                hasTierValue = true;
+                hasZoneMinuteValue = true;
+            });
+            if (hasTierValue) zoneMinutes[dungeonKey] = perTier;
+        });
+        if (sawZoneMinuteInput) {
+            if (hasZoneMinuteValue) map["dungeon.zoneCompare.minutes.v3"] = JSON.stringify(zoneMinutes);
+            else delete map["dungeon.zoneCompare.minutes.v3"];
+        }
+
+        const clearTimeEl = document.getElementById("clearTime");
+        const playerBuffEl = document.getElementById("playerBuff");
+        const scrollCountEl = document.getElementById("combatDropScrollCount") || document.getElementById("zcScrollCount");
+        if (clearTimeEl || playerBuffEl || scrollCountEl) {
+            const currentRunInputs = parseJsonForShare(map["dungeon.runInputs"], {});
+            const liveScroll = scrollCountEl
+                ? normalizeLiveShareScrollState(scrollCountEl.value)
+                : normalizeLiveShareScrollState(
+                    shareToggleEnabled(currentRunInputs?.combatDropScrollEnabled ?? currentRunInputs?.scrollEnabled)
+                        ? (currentRunInputs?.combatDropScrollCount ?? currentRunInputs?.scrollCount ?? "1")
+                        : ""
+                );
+            const nextRunInputs = normalizeRunInputsForShare({
+                clearTime: clearTimeEl ? shareString(clearTimeEl.value).trim() : currentRunInputs?.clearTime,
+                buff: playerBuffEl ? String(clampShareBuffValue(playerBuffEl.value)) : currentRunInputs?.buff,
+                combatDropScrollEnabled: liveScroll.enabled ? "1" : "0",
+                combatDropScrollCount: String(liveScroll.count),
+            });
+            if (hasMeaningfulRunInputs(nextRunInputs)) {
+                map["dungeon.runInputs"] = JSON.stringify(nextRunInputs);
+            } else {
+                delete map["dungeon.runInputs"];
+            }
+
+            const selected = selectedShareContext(map);
+            if (selected && (clearTimeEl || playerBuffEl)) {
+                const currentZoneMinutes = parseJsonForShare(map["dungeon.zoneCompare.minutes.v3"], {});
+                const nextByContext = parseJsonForShare(map["dungeon.runInputsByContext.v1"], {});
+                const clearTime = shareString(nextRunInputs.clearTime) || clearTimeForContextKey(currentZoneMinutes, selected.contextKey);
+                const buff = shareString(nextRunInputs.buff || "20") || "20";
+                if (clearTime || buff !== "20") {
+                    nextByContext[selected.contextKey] = { clearTime, buff };
+                    if (hasMeaningfulContextRunInputs(nextByContext)) {
+                        map["dungeon.runInputsByContext.v1"] = JSON.stringify(nextByContext);
+                    }
+                }
+            }
+        }
+
+        return sanitizeStateMap(map);
+    }
+
+    function repairSharedStateMap(rawMap) {
+        const map = sanitizeStateMap(rawMap);
+        const selected = selectedShareContext(map);
+        const zoneMinutes = parseJsonForShare(map["dungeon.zoneCompare.minutes.v3"], {});
+        const runInputs = normalizeRunInputsForShare(parseJsonForShare(map["dungeon.runInputs"], {}));
+        const runInputsByContext = parseJsonForShare(map["dungeon.runInputsByContext.v1"], {});
+        let zoneBuff = finiteShareNumber(map["dungeon.zoneCompare.buff.v3"]);
+
+        if (zoneBuff == null && selected) {
+            zoneBuff = finiteShareNumber(runInputsByContext?.[selected.contextKey]?.buff);
+        }
+        if (zoneBuff == null) {
+            const uniqueBuffs = new Set();
+            Object.keys(runInputsByContext || {}).forEach((contextKey) => {
+                const buff = finiteShareNumber(runInputsByContext?.[contextKey]?.buff);
+                if (buff == null || buff === 20) return;
+                uniqueBuffs.add(String(clampShareBuffValue(buff)));
+            });
+            if (uniqueBuffs.size === 1) {
+                zoneBuff = finiteShareNumber(Array.from(uniqueBuffs)[0]);
+            }
+        }
+        if (zoneBuff == null) {
+            zoneBuff = finiteShareNumber(runInputs.buff);
+        }
+        if (zoneBuff != null) {
+            zoneBuff = clampShareBuffValue(zoneBuff);
+            if (zoneBuff !== 20) map["dungeon.zoneCompare.buff.v3"] = String(zoneBuff);
+        }
+
+        if (!map["dungeon.foodPerDay"] && map["dungeon.zoneCompare.food.v3"]) {
+            map["dungeon.foodPerDay"] = map["dungeon.zoneCompare.food.v3"];
+        }
+        if (!map["dungeon.zoneCompare.food.v3"] && map["dungeon.foodPerDay"]) {
+            map["dungeon.zoneCompare.food.v3"] = map["dungeon.foodPerDay"];
+        }
+        if (!map["dungeon.viewMode.v1"] && map["dungeon.zoneCompare.minutes.v3"]) {
+            map["dungeon.viewMode.v1"] = "zoneCompare";
+        }
+
+        const repairedByContext = { ...(runInputsByContext || {}) };
+        let repairedByContextChanged = false;
+        SHARE_CONTEXT_KEYS.forEach((contextKey) => {
+            const clearTime = clearTimeForContextKey(zoneMinutes, contextKey);
+            if (!clearTime) return;
+            const current = repairedByContext[contextKey] && typeof repairedByContext[contextKey] === "object"
+                ? repairedByContext[contextKey]
+                : {};
+            const currentClearTime = shareString(current.clearTime);
+            const currentBuff = shareString(current.buff);
+            const rowLooksSyntheticDefault = !currentClearTime && (!currentBuff || currentBuff === "20");
+            const nextClearTime = currentClearTime || clearTime;
+            let nextBuff = currentBuff;
+            if (!nextBuff) {
+                if (zoneBuff != null) nextBuff = String(zoneBuff);
+                else if (selected && selected.contextKey === contextKey) nextBuff = shareString(runInputs.buff || "20");
+            } else if (rowLooksSyntheticDefault && zoneBuff != null && zoneBuff !== 20) {
+                nextBuff = String(zoneBuff);
+            }
+            if (currentClearTime !== nextClearTime || (currentBuff || "20") !== (nextBuff || "20")) {
+                repairedByContext[contextKey] = {
+                    clearTime: nextClearTime,
+                    buff: nextBuff || "20",
+                };
+                repairedByContextChanged = true;
+            }
+        });
+        if (hasMeaningfulContextRunInputs(repairedByContext) && (repairedByContextChanged || !map["dungeon.runInputsByContext.v1"])) {
+            map["dungeon.runInputsByContext.v1"] = JSON.stringify(repairedByContext);
+        }
+
+        if (selected) {
+            const selectedRow = repairedByContext[selected.contextKey];
+            let nextBuff = shareString(runInputs.buff);
+            if (!nextBuff) {
+                nextBuff = shareString(selectedRow?.buff) || (zoneBuff != null ? String(zoneBuff) : "20");
+            } else if (nextBuff === "20" && shareString(selectedRow?.buff) && shareString(selectedRow?.buff) !== "20") {
+                nextBuff = shareString(selectedRow.buff);
+            }
+            const nextRunInputs = {
+                ...runInputs,
+                clearTime: shareString(runInputs.clearTime) || shareString(selectedRow?.clearTime) || clearTimeForContextKey(zoneMinutes, selected.contextKey),
+                buff: nextBuff || "20",
+            };
+            if (hasMeaningfulRunInputs(nextRunInputs) && (!map["dungeon.runInputs"]
+                || shareString(runInputs.clearTime) !== shareString(nextRunInputs.clearTime)
+                || shareString(runInputs.buff || "20") !== shareString(nextRunInputs.buff || "20"))) {
+                map["dungeon.runInputs"] = JSON.stringify(normalizeRunInputsForShare(nextRunInputs));
+            }
+        }
+
+        return sanitizeStateMap(map);
+    }
+
     function buildShareFlags(rawMap) {
         let flags = 0;
         if (rawMap["dungeon.advancedMode"] === "1") flags |= SHARE_FLAG_ADVANCED;
@@ -3285,16 +3520,63 @@
 
     function buildCriticalSharePayload(rawMap) {
         const map = sanitizeStateMap(rawMap);
+        const viewMode = encodeViewModeCode(map["dungeon.viewMode.v1"]);
+        const selectedDungeon = encodeDungeonCode(map["dungeon.selectedDungeon"]);
+        const selectedTier = encodeTierCode(map["dungeon.selectedTier"]);
+        const food = shareString(map["dungeon.foodPerDay"]);
+        const zoneFood = shareString(map["dungeon.zoneCompare.food.v3"]);
+        const resolvedFood = food || zoneFood;
+        const zoneBuff = finiteShareNumber(map["dungeon.zoneCompare.buff.v3"]);
         const zoneMinutes = packSparseTierMinutes(map["dungeon.zoneCompare.minutes.v3"]);
+        const foodByContext = packSparseContextStrings(map["dungeon.foodPerDayByContext.v1"]);
+        const runInputs = packRunInputs(map["dungeon.runInputs"]);
+        const runInputsByContext = packSparseContextRows(map["dungeon.runInputsByContext.v1"]);
         return trimTrailingEmpty([
             SHARE_CRITICAL_VERSION,
+            viewMode > 0 ? viewMode : "",
+            selectedDungeon >= 0 ? selectedDungeon : "",
+            selectedTier >= 0 ? selectedTier : "",
+            resolvedFood && resolvedFood !== SHARE_DEFAULT_FOOD ? resolvedFood : "",
+            zoneFood && zoneFood !== resolvedFood ? zoneFood : "",
+            zoneBuff != null && zoneBuff !== 20 ? zoneBuff : "",
             !isPackedValueEmpty(zoneMinutes) ? zoneMinutes : "",
+            !isPackedValueEmpty(foodByContext) ? foodByContext : "",
+            !isPackedValueEmpty(runInputs) ? runInputs : "",
+            !isPackedValueEmpty(runInputsByContext) ? runInputsByContext : "",
         ]);
     }
 
     function unpackCriticalSharePayload(payload) {
         if (!Array.isArray(payload)) return null;
         const version = Number(payload[0]);
+        if (version === 3) {
+            const out = {};
+            const viewMode = decodeViewModeCode(payload[SHARE_CRITICAL_INDEX_V3.vm]);
+            const selectedDungeon = decodeDungeonCode(payload[SHARE_CRITICAL_INDEX_V3.d]);
+            const selectedTier = decodeTierCode(payload[SHARE_CRITICAL_INDEX_V3.t]);
+            const food = shareString(payload[SHARE_CRITICAL_INDEX_V3.f]);
+            const zoneFood = shareString(payload[SHARE_CRITICAL_INDEX_V3.zf]) || food;
+            const zoneBuff = finiteShareNumber(payload[SHARE_CRITICAL_INDEX_V3.b]);
+            const zoneMinutes = unpackSparseTierMinutes(payload[SHARE_CRITICAL_INDEX_V3.z]);
+            const foodByContext = unpackSparseContextStrings(payload[SHARE_CRITICAL_INDEX_V3.fc]);
+            const runInputs = unpackRunInputs(payload[SHARE_CRITICAL_INDEX_V3.r]);
+            const runInputsByContext = unpackSparseContextRows(payload[SHARE_CRITICAL_INDEX_V3.rc], zoneMinutes);
+
+            if (viewMode && viewMode !== "quick") out["dungeon.viewMode.v1"] = viewMode;
+            if (selectedDungeon) out["dungeon.selectedDungeon"] = selectedDungeon;
+            if (selectedTier) out["dungeon.selectedTier"] = selectedTier;
+            if (food) out["dungeon.foodPerDay"] = food;
+            if (zoneFood) out["dungeon.zoneCompare.food.v3"] = zoneFood;
+            if (zoneBuff != null && zoneBuff !== 20) out["dungeon.zoneCompare.buff.v3"] = String(zoneBuff);
+            if (!isPackedValueEmpty(zoneMinutes)) out["dungeon.zoneCompare.minutes.v3"] = JSON.stringify(zoneMinutes);
+            if (!isPackedValueEmpty(foodByContext)) out["dungeon.foodPerDayByContext.v1"] = JSON.stringify(foodByContext);
+            if (!isPackedValueEmpty(runInputs)) out["dungeon.runInputs"] = JSON.stringify(runInputs);
+            if (!isPackedValueEmpty(runInputsByContext)) out["dungeon.runInputsByContext.v1"] = JSON.stringify(runInputsByContext);
+            return {
+                secondaryLength: null,
+                state: out,
+            };
+        }
         if (version === 1) {
             const out = {};
             const declaredSecondaryLength = Math.max(0, Number(payload[1]) || 0);
@@ -3319,7 +3601,13 @@
 
     function stripCriticalStateForSecondary(rawMap) {
         const map = sanitizeStateMap(rawMap);
+        delete map["dungeon.foodPerDay"];
+        delete map["dungeon.zoneCompare.food.v3"];
+        delete map["dungeon.zoneCompare.buff.v3"];
         delete map["dungeon.zoneCompare.minutes.v3"];
+        delete map["dungeon.foodPerDayByContext.v1"];
+        delete map["dungeon.runInputs"];
+        delete map["dungeon.runInputsByContext.v1"];
         return map;
     }
 
@@ -3441,8 +3729,7 @@
             if (!rawHash) return { applied: false, partial: false };
             const decoded = decodeShareCandidate(rawHash);
             if (!decoded || typeof decoded.state !== "object") return { applied: false, partial: false };
-            const state = sanitizeStateMap(decoded.state);
-            applyStateMap(state);
+            const state = applyStateMap(decoded.state);
             setTempSharedState(state, { partial: !!decoded.partial });
             window.history.replaceState({}, "", clearShareStateUrlParts(url, rawHash));
             return { applied: true, partial: !!decoded.partial };
