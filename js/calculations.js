@@ -14,6 +14,7 @@
   const COMBAT_DROP_SCROLL_DURATION_MINUTES = 30;
   const COMBAT_DROP_SCROLL_EXTRA_RATE = 0.15;
   const COMBAT_DROP_SCROLL_MAX_COUNT = Math.floor(DAY_MINUTES / COMBAT_DROP_SCROLL_DURATION_MINUTES);
+  const DEFAULT_MARKET_TAX_RATE = 0.05;
 
   function toNum(x, fallback = NaN) {
     const n = Number(x);
@@ -189,15 +190,9 @@
     };
   }
 
-  /** Default tax rate as a decimal (e.g. 0.02). */
+  /** Default marketplace tax rate as a decimal. Sellers receive 95% of market value. */
   function getDefaultTaxRate() {
-    try {
-      if (window.DungeonAPI && typeof window.DungeonAPI.getDefaultTaxPct === "function") {
-        const pct = toNum(window.DungeonAPI.getDefaultTaxPct(), NaN);
-        if (Number.isFinite(pct)) return pct / 100;
-      }
-    } catch (_) {}
-    return 0.02;
+    return DEFAULT_MARKET_TAX_RATE;
   }
 
   /**

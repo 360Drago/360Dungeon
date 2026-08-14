@@ -1657,6 +1657,8 @@
     const craftBidTea = fragRows.every((f) => Number.isFinite(f.bidTotal))
       ? fragRows.reduce((sum, f) => sum + f.bidTotal, 0)
       : null;
+    // These deltas compare crafting a key for use against buying the same key.
+    // No item is sold in this planner, so marketplace tax does not apply.
     const instantAskDelta = (Number.isFinite(keyPrice.ask) && Number.isFinite(craftAskTea)) ? (keyPrice.ask - craftAskTea) : null;
     const instantBidDelta = (Number.isFinite(keyPrice.bid) && Number.isFinite(craftAskTea)) ? (keyPrice.bid - craftAskTea) : null;
     const orderAskDelta = (Number.isFinite(keyPrice.ask) && Number.isFinite(craftBidTea)) ? (keyPrice.ask - craftBidTea) : null;

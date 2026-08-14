@@ -46,6 +46,13 @@
     return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) / 100 : 0;
   }
 
+  function resolveDefaultTaxPct() {
+    const apiPct = safeNum(window.DungeonAPI?.getDefaultTaxPct?.());
+    if (Number.isFinite(apiPct)) return apiPct;
+    const calcRate = safeNum(window.DungeonCalculations?.getDefaultTaxRate?.());
+    return Number.isFinite(calcRate) ? calcRate * 100 : 5;
+  }
+
   async function computeEconomics(opts = {}) {
     lastError = null;
     const {
@@ -91,7 +98,7 @@
       const refinedEv = safeNum(ev?.refinedChestEv);
       const revPerRun = (chestEv * chestsPerRun) + (refinedEv * refinedPerRunBuffed);
 
-      const taxPctEff = (taxPct != null) ? safeNum(taxPct) : (window.DungeonAPI.getDefaultTaxPct?.() ?? 0);
+      const taxPctEff = (taxPct != null) ? safeNum(taxPct) : resolveDefaultTaxPct();
       const taxRate = pctToRate(taxPctEff);
       const revAfterTaxPerRun = revPerRun * (1 - taxRate);
 
@@ -161,4 +168,3 @@
     get lastError() { return lastError; },
   };
 })();
-

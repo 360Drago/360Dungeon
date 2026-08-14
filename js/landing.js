@@ -4874,11 +4874,11 @@
     if (label) {
       return rangeOn
         ? `${label}: ${i18nT("ui.rangeSubInline", "low uses loot @ bid + keys @ ask; high uses loot @ ask + keys @ bid.")}`
-        : `${label}: ${i18nT("ui.standardSubInline", "standard uses loot @ bid - 2% tax; keys @ bid.")}`;
+        : `${label}: ${i18nT("ui.standardSubInline", "standard uses loot @ bid - 5% tax; keys @ bid.")}`;
     }
     return rangeOn
       ? i18nT("ui.rangeSub", "Range: low uses loot @ bid + keys @ ask; high uses loot @ ask + keys @ bid.")
-      : i18nT("ui.standardSub", "Standard: instant sell @ bid - 2% tax; keys @ bid.");
+      : i18nT("ui.standardSub", "Standard: instant sell @ bid - 5% tax; keys @ bid.");
   }
 
   function applyResultsSubText(subEl, rangeOn, label = "") {
@@ -5084,7 +5084,7 @@ ${i18nT("ui.netHour", "Net/hour")}: ${fmtC(bidBidProfit / 24)}`;
     updateQuickKeySavingsTooltips(selectedDungeon);
 
     if (simpleResultsSub) {
-      simpleResultsSub.textContent = i18nT("ui.standardSub", "Standard: instant sell @ bid - 2% tax; keys @ bid.");
+      simpleResultsSub.textContent = i18nT("ui.standardSub", "Standard: instant sell @ bid - 5% tax; keys @ bid.");
     }
 
     await ensureActiveApiSavedForSimple(selectedDungeon);
@@ -5768,7 +5768,7 @@ async function renderAdvancedResults() {
       const p = getPlayerParsedForApi();
       return p?.buffNum ?? 0;
     },
-    getDefaultTaxPct: () => 2,
+    getDefaultTaxPct: () => Calc.getDefaultTaxRate() * 100,
     getFoodPerRun: () => {
       const day = getFoodPerDayValue();
       const runs = (window.DungeonAPI && window.DungeonAPI.getRunsPerDay) ? window.DungeonAPI.getRunsPerDay() : 0;
