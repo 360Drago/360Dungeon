@@ -3492,9 +3492,10 @@
           chestKeyBid: chestAB.bid,
           fetchedAt: now,
           usedProxy,
-          marketSlim,
-          ev,
-        };
+           marketSlim,
+           ev,
+           evBid: ev,
+         };
       const nextSaved = mergeDungeonSnapshot(cfg.getSaved(), dungeonKey, snapshot);
 
       cfg.setSaved(nextSaved);
@@ -3515,7 +3516,7 @@
       setApiSourceLoadState(stateSource, { status: "ready", error: "" });
       return { ok: true, fetchedAt: now, usedProxy };
     } catch (err) {
-      console.error(cfg.errorPrefix, err);
+      if (!silent) console.error(cfg.errorPrefix, err);
       const savedMap = (typeof cfg.getSaved === "function") ? cfg.getSaved() : null;
       const hasSavedData = hasSavedApiCoreForDungeon(savedMap, dungeonKey);
       const errorToast = (typeof cfg.errorToast === "function")
@@ -4760,9 +4761,7 @@
     const perMap = getSavedByApiSource(source);
     const per = getSavedRecordFromMap(perMap, dungeonKey);
     const key = (side === "ask") ? "evAsk" : "evBid";
-    const fallbackKey = (side === "bid") ? "ev" : null;
-
-    const existing = per ? (per[key] || (fallbackKey ? per[fallbackKey] : null)) : null;
+    const existing = per ? per[key] : null;
     if (existing && (Number.isFinite(existing.chestEv) || Number.isFinite(existing.refinedChestEv))) return existing;
 
     const marketData = per?.marketSlim || null;
@@ -5043,7 +5042,7 @@ ${i18nT("ui.netHour", "Net/hour")}: ${fmtC(bidBidProfit / 24)}`;
     if (marketSlim && window.DungeonChestEV?.computeDungeonChestEV) {
       const overrides = getEffectiveLootOverrides(marketSlim);
       try {
-        if (!overrides && record?.ev) evBid = record.ev;
+        if (!overrides && record?.evBid) evBid = record.evBid;
         else evBid = await window.DungeonChestEV.computeDungeonChestEV({
           dungeonKey,
           marketData: marketSlim,

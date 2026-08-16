@@ -13,11 +13,20 @@
 
   async function fetchJsonWithTimeout(url, timeoutMs = 12000) {
     const ctrl = new AbortController();
-    const t = window.setTimeout(() => ctrl.abort(), timeoutMs);
+    let timedOut = false;
+    const t = window.setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, timeoutMs);
     try {
       const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
+    } catch (err) {
+      if (timedOut && err?.name === "AbortError") {
+        throw new Error(`Marketplace request timed out after ${timeoutMs} ms.`);
+      }
+      throw err;
     } finally {
       window.clearTimeout(t);
     }

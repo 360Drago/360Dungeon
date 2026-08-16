@@ -27,6 +27,7 @@
       usedProxy: opts.usedProxy,
       marketSlim: opts.marketSlim,
       ev: opts.ev,
+      evBid: opts.ev,
     };
   }
 

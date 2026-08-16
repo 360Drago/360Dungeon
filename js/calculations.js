@@ -26,6 +26,12 @@
     return Number.isFinite(n) ? n : 0;
   }
 
+  function orderedPair(a, b) {
+    const first = safe0(a);
+    const second = safe0(b);
+    return { low: Math.min(first, second), high: Math.max(first, second) };
+  }
+
   /** @param {number} clearMinutes */
   function computeRunsPerDay(clearMinutes) {
     const ct = toNum(clearMinutes, NaN);
@@ -203,15 +209,20 @@
     const eKeys = toNum(entryKeys, NaN);
     const cKeys = toNum(chestKeys, NaN);
 
-    const keyCostLow =
+    const askCost =
       (Number.isFinite(entryAsk) ? entryAsk : NaN) * eKeys +
       (Number.isFinite(chestKeyAsk) ? chestKeyAsk : NaN) * cKeys;
 
-    const keyCostHigh =
+    const bidCost =
       (Number.isFinite(entryBid) ? entryBid : NaN) * eKeys +
       (Number.isFinite(chestKeyBid) ? chestKeyBid : NaN) * cKeys;
 
-    return { keyCostLow, keyCostHigh };
+    // "Low" profit uses the higher acquisition cost. Normalize crossed quotes
+    // rather than allowing a malformed market spread to reverse the range.
+    return {
+      keyCostLow: Math.max(askCost, bidCost),
+      keyCostHigh: Math.min(askCost, bidCost),
+    };
   }
 
   /**
@@ -222,15 +233,18 @@
     const c = toNum(chestCount, NaN);
     const r = toNum(refinedCount, NaN);
 
-    const lootLow =
+    const bidLoot =
       (Number.isFinite(chestEvBid) ? chestEvBid : NaN) * c +
       (Number.isFinite(refinedEvBid) ? refinedEvBid : NaN) * r;
 
-    const lootHigh =
+    const askLoot =
       (Number.isFinite(chestEvAsk) ? chestEvAsk : NaN) * c +
       (Number.isFinite(refinedEvAsk) ? refinedEvAsk : NaN) * r;
 
-    return { lootLow, lootHigh };
+    return {
+      lootLow: Math.min(bidLoot, askLoot),
+      lootHigh: Math.max(bidLoot, askLoot),
+    };
   }
 
   /**
@@ -239,9 +253,9 @@
    */
   function computeProfitRangeAfterTax({ lootLow, lootHigh, keyCostLow, keyCostHigh, taxRate }) {
     const t = Number.isFinite(taxRate) ? taxRate : getDefaultTaxRate();
-    const profitLow = (lootLow * (1 - t)) - keyCostLow;
-    const profitHigh = (lootHigh * (1 - t)) - keyCostHigh;
-    return { profitLow, profitHigh };
+    const first = (lootLow * (1 - t)) - keyCostLow;
+    const second = (lootHigh * (1 - t)) - keyCostHigh;
+    return { profitLow: Math.min(first, second), profitHigh: Math.max(first, second) };
   }
 
   
@@ -282,21 +296,21 @@
     const rc = safe0(refinedCount);
     const food = safe0(foodPerDay);
 
-    const chestNetLow = safe0(chestEvBid) * (1 - tax);
-    const refinedNetLow = safe0(refinedEvBid) * (1 - tax);
-    const chestNetHigh = safe0(chestEvAsk) * (1 - tax);
-    const refinedNetHigh = safe0(refinedEvAsk) * (1 - tax);
+    const chestEv = orderedPair(chestEvBid, chestEvAsk);
+    const refinedEv = orderedPair(refinedEvBid, refinedEvAsk);
+    const chestNetLow = chestEv.low * (1 - tax);
+    const refinedNetLow = refinedEv.low * (1 - tax);
+    const chestNetHigh = chestEv.high * (1 - tax);
+    const refinedNetHigh = refinedEv.high * (1 - tax);
 
-    const eAsk = safe0(entryAsk);
-    const eBid = safe0(entryBid);
-    const kAsk = safe0(chestKeyAsk);
-    const kBid = safe0(chestKeyBid);
+    const entryCost = orderedPair(entryAsk, entryBid);
+    const chestKeyCost = orderedPair(chestKeyAsk, chestKeyBid);
 
-    const regAfterLow = chestNetLow - kAsk - eAsk;
-    const refAfterLow = refinedNetLow - kAsk;
+    const regAfterLow = chestNetLow - chestKeyCost.high - entryCost.high;
+    const refAfterLow = refinedNetLow - chestKeyCost.high;
 
-    const regAfterHigh = chestNetHigh - kBid - eBid;
-    const refAfterHigh = refinedNetHigh - kBid;
+    const regAfterHigh = chestNetHigh - chestKeyCost.low - entryCost.low;
+    const refAfterHigh = refinedNetHigh - chestKeyCost.low;
 
     const profitLow = (regAfterLow * cc) + (refAfterLow * rc) - food;
     const profitHigh = (regAfterHigh * cc) + (refAfterHigh * rc) - food;

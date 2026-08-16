@@ -1871,10 +1871,18 @@
         warnings.push(`${zone.title}: ${tf("ui.apiPriceMissingList", "API price missing/-1 for {items}{extra}.", { items: shown, extra })}`);
       }
 
-      const nLow = (Number(evBid?.chestEv) * (1 - tRate)) - prices.chestKeyAsk - prices.entryAsk;
-      const nHigh = (Number(evAsk?.chestEv) * (1 - tRate)) - prices.chestKeyBid - prices.entryBid;
-      const rLow = (Number(evBid?.refinedChestEv) * (1 - tRate)) - prices.chestKeyAsk;
-      const rHigh = (Number(evAsk?.refinedChestEv) * (1 - tRate)) - prices.chestKeyBid;
+      const chestEvLow = Math.min(Number(evBid?.chestEv), Number(evAsk?.chestEv));
+      const chestEvHigh = Math.max(Number(evBid?.chestEv), Number(evAsk?.chestEv));
+      const refinedEvLow = Math.min(Number(evBid?.refinedChestEv), Number(evAsk?.refinedChestEv));
+      const refinedEvHigh = Math.max(Number(evBid?.refinedChestEv), Number(evAsk?.refinedChestEv));
+      const entryCostLow = Math.min(prices.entryAsk, prices.entryBid);
+      const entryCostHigh = Math.max(prices.entryAsk, prices.entryBid);
+      const chestKeyCostLow = Math.min(prices.chestKeyAsk, prices.chestKeyBid);
+      const chestKeyCostHigh = Math.max(prices.chestKeyAsk, prices.chestKeyBid);
+      const nLow = (chestEvLow * (1 - tRate)) - chestKeyCostHigh - entryCostHigh;
+      const nHigh = (chestEvHigh * (1 - tRate)) - chestKeyCostLow - entryCostLow;
+      const rLow = (refinedEvLow * (1 - tRate)) - chestKeyCostHigh;
+      const rHigh = (refinedEvHigh * (1 - tRate)) - chestKeyCostLow;
       if (![nLow, nHigh, rLow, rHigh].every(Number.isFinite)) {
         warnings.push(`${zone.title}: ${t("ui.evInvalidValues", "EV response had invalid values.")}`);
         return { error: t("ui.unableComputeEv", "Unable to compute EV."), warnings };
@@ -2061,7 +2069,7 @@
     return count;
   }
 
-  async function calculateAll(zones) {
+  async function calculateAll(zones, opts = {}) {
     const btn = byId("zcCalc");
     const api = window.DungeonAPI || null;
     const calc = window.DungeonCalculations || null;
@@ -2083,18 +2091,21 @@
       const food = parseFood(state.food);
       const foodPerDay = Number.isFinite(food) ? food : 0;
 
-      setStatus(t("ui.refreshingPricesAllZones", "Refreshing prices for all zones..."));
-      let refreshResults = [];
-      if (typeof api.refreshPricesForAllDungeons === "function") {
-        const bulk = await api.refreshPricesForAllDungeons(source, { silent: true, reason: "zone-compare" });
-        refreshResults = zones.map((z) => {
-          const result = bulk?.[z.key];
-          if (!result) return { ok: false, error: t("ui.apiRefreshUnavailable", "API refresh unavailable.") };
-          if (result.ok === false) return { ok: false, error: result.error || t("ui.apiRefreshFailedShort", "API refresh failed.") };
-          return { ok: true, error: "" };
-        });
-      } else {
-        refreshResults = await Promise.all(zones.map((z) => refreshZone(z.key, source)));
+      const refreshPrices = opts.refreshPrices !== false;
+      let refreshResults = zones.map(() => ({ ok: true, error: "" }));
+      if (refreshPrices) {
+        setStatus(t("ui.refreshingPricesAllZones", "Refreshing prices for all zones..."));
+        if (typeof api.refreshPricesForAllDungeons === "function") {
+          const bulk = await api.refreshPricesForAllDungeons(source, { silent: true, reason: "zone-compare" });
+          refreshResults = zones.map((z) => {
+            const result = bulk?.[z.key];
+            if (!result) return { ok: false, error: t("ui.apiRefreshUnavailable", "API refresh unavailable.") };
+            if (result.ok === false) return { ok: false, error: result.error || t("ui.apiRefreshFailedShort", "API refresh failed.") };
+            return { ok: true, error: "" };
+          });
+        } else {
+          refreshResults = await Promise.all(zones.map((z) => refreshZone(z.key, source)));
+        }
       }
       if (token !== calcRunToken) return;
 
@@ -2383,6 +2394,8 @@
         state.keyPlannerImport = !!keyPlanner.checked;
         persistState();
         void refreshKeyPlannerImportActionState(zones);
+        const hasAnyMinutes = zones.some((zone) => TIERS.some((tier) => asText(state?.minutes?.[zone.key]?.[tier]).trim() !== ""));
+        if (hasAnyMinutes) void calculateAll(zones, { refreshPrices: false });
       });
     }
 
@@ -2631,7 +2644,11 @@
       void renderManualPanel(readZones(), source);
     });
     document.addEventListener("keys:import-pricing-changed", () => {
-      if (toggle.checked) void refreshKeyPlannerImportActionState(readZones());
+      if (!toggle.checked) return;
+      const zones = readZones();
+      void refreshKeyPlannerImportActionState(zones);
+      const hasAnyMinutes = zones.some((zone) => TIERS.some((tier) => asText(state?.minutes?.[zone.key]?.[tier]).trim() !== ""));
+      if (state.keyPlannerImport && hasAnyMinutes) void calculateAll(zones, { refreshPrices: false });
     });
     document.addEventListener("dungeon:personal-loot-import-changed", () => {
       if (!toggle.checked) return;
