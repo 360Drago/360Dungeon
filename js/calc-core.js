@@ -50,7 +50,7 @@
     const apiPct = safeNum(window.DungeonAPI?.getDefaultTaxPct?.());
     if (Number.isFinite(apiPct)) return apiPct;
     const calcRate = safeNum(window.DungeonCalculations?.getDefaultTaxRate?.());
-    return Number.isFinite(calcRate) ? calcRate * 100 : 5;
+    return Number.isFinite(calcRate) ? calcRate * 100 : 4;
   }
 
   async function computeEconomics(opts = {}) {

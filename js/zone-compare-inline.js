@@ -1328,7 +1328,7 @@
     }
     const api = window.DungeonAPI || null;
     const pct = Number(api?.getDefaultTaxPct?.());
-    return Number.isFinite(pct) ? pct / 100 : 0.05;
+    return Number.isFinite(pct) ? pct / 100 : 0.04;
   }
 
   function setStatus(msg, isError = false) {

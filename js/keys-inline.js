@@ -2196,7 +2196,8 @@
     const totalCostLabelEl = panel.querySelector("#keysCalcCostLabel");
     const targetRaw = getRecipeTargetRaw(recipe);
     const bankRaw = getRecipeBankRaw(recipe);
-    if (input && input.value !== targetRaw) {
+    const preserveEmptyTargetDraft = input?.dataset.preserveEmptyDraft === "1";
+    if (input && input.value !== targetRaw && !preserveEmptyTargetDraft) {
       input.value = targetRaw;
     }
     if (bankInput && bankInput.value !== bankRaw) {
@@ -2279,16 +2280,27 @@
     const input = panel.querySelector("#keysChestTargetInput");
     if (input) {
       input.addEventListener("input", () => {
+        const isEmptyDraft = input.value.trim() === "";
+        input.dataset.preserveEmptyDraft = isEmptyDraft ? "1" : "";
+        if (isEmptyDraft) {
+          // Keep the field empty while the user replaces its value. The saved
+          // target remains valid until a new positive number is entered.
+          updateCalculator(panel, recipe, market);
+          return;
+        }
         setRecipeTargetRaw(recipe, input.value);
         updateCalculator(panel, recipe, market);
       });
-      input.addEventListener("change", () => {
+      const commitTargetInput = () => {
         const normalized = parsePositiveInteger(input.value);
         const nextRaw = normalized ? String(normalized) : DEFAULT_TARGET_RAW;
+        input.dataset.preserveEmptyDraft = "";
         setRecipeTargetRaw(recipe, nextRaw);
         input.value = nextRaw;
         updateCalculator(panel, recipe, market);
-      });
+      };
+      input.addEventListener("change", commitTargetInput);
+      input.addEventListener("blur", commitTargetInput);
     }
     const resetBtn = panel.querySelector("#keysTargetResetBtn");
     if (resetBtn) {

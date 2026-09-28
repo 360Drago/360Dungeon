@@ -14,7 +14,7 @@
   const COMBAT_DROP_SCROLL_DURATION_MINUTES = 30;
   const COMBAT_DROP_SCROLL_EXTRA_RATE = 0.15;
   const COMBAT_DROP_SCROLL_MAX_COUNT = Math.floor(DAY_MINUTES / COMBAT_DROP_SCROLL_DURATION_MINUTES);
-  const DEFAULT_MARKET_TAX_RATE = 0.05;
+  const DEFAULT_MARKET_TAX_RATE = 0.04;
 
   function toNum(x, fallback = NaN) {
     const n = Number(x);
@@ -196,7 +196,7 @@
     };
   }
 
-  /** Default marketplace tax rate as a decimal. Sellers receive 95% of market value. */
+  /** Default marketplace tax rate as a decimal. Sellers receive 96% of market value. */
   function getDefaultTaxRate() {
     return DEFAULT_MARKET_TAX_RATE;
   }
